@@ -156,7 +156,8 @@ export class PaymentService {
      */
     async getPaymentStatus(orderId: string): Promise<PaymentIntent | null> {
         try {
-            return await this.db.getPaymentIntent(orderId);
+            const result = await this.db.getPaymentIntent(orderId);
+            return result as PaymentIntent | null;
         } catch (error) {
             logger.error('[PAYMENT] Get status error:', error);
             return null;

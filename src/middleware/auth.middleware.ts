@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 
-export function requireApiKey(req: Request, res: Response, next: NextFunction) {
+export const authMiddleware = (req: Request, res: Response, next: NextFunction) => {
     const apiKey = req.headers['x-api-key'];
     const validKey = process.env.API_SECRET_KEY;
 
@@ -12,4 +12,4 @@ export function requireApiKey(req: Request, res: Response, next: NextFunction) {
     }
 
     next();
-}
+};

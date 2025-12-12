@@ -98,7 +98,8 @@ export class DailyAssetService {
             };
             
             // Upload metadata
-            const metadataUri = await this.metaplex.nfts().uploadMetadata(metadata);
+            const metadataOutput = await this.metaplex.nfts().uploadMetadata(metadata);
+            const metadataUri = typeof metadataOutput === 'string' ? metadataOutput : metadataOutput.uri;
             
             logger.info(`[DAILY ASSET] Metadata uploaded: ${metadataUri}`);
             
