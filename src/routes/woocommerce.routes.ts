@@ -6,7 +6,7 @@ import { Router, Request, Response } from 'express';
 import { WooCommerceService } from '../services/woocommerce.service';
 import { NFTMintService } from '../services/nft-mint.service';
 import { PaymentService } from '../services/payment.service';
-import { validateWooHMAC } from '../middleware/woo-hmac.middleware';
+import { validateWooCommerceWebhook } from '../middleware/woo-hmac.middleware';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -18,7 +18,7 @@ const paymentService = new PaymentService();
  * POST /wc/webhooks/product-published
  * When WooCommerce product is published, mint NFT on Solana
  */
-router.post('/webhooks/product-published', validateWooHMAC, async (req: Request, res: Response) => {
+router.post('/webhooks/product-published', validateWooCommerceWebhook, async (req: Request, res: Response) => {
     try {
         const product = req.body;
         
@@ -86,7 +86,7 @@ router.post('/webhooks/product-published', validateWooHMAC, async (req: Request,
  * POST /wc/webhooks/order-created
  * When WooCommerce order is created with TOLA Pay
  */
-router.post('/webhooks/order-created', validateWooHMAC, async (req: Request, res: Response) => {
+router.post('/webhooks/order-created', validateWooCommerceWebhook, async (req: Request, res: Response) => {
     try {
         const order = req.body;
         
@@ -140,7 +140,7 @@ router.post('/webhooks/order-created', validateWooHMAC, async (req: Request, res
  * POST /wc/webhooks/order-paid
  * Called after on-chain TOLA payment is confirmed
  */
-router.post('/webhooks/order-paid', validateWooHMAC, async (req: Request, res: Response) => {
+router.post('/webhooks/order-paid', validateWooCommerceWebhook, async (req: Request, res: Response) => {
     try {
         const { orderId, signature } = req.body;
         
