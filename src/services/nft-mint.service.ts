@@ -3,7 +3,7 @@
  */
 
 import { Connection, Keypair, PublicKey, clusterApiUrl } from '@solana/web3.js';
-import { Metaplex, keypairIdentity, bundlrStorage, toMetaplexFile } from '@metaplex-foundation/js';
+import { Metaplex, keypairIdentity, toMetaplexFile } from '@metaplex-foundation/js';
 import axios from 'axios';
 import { DatabaseService } from './database.service';
 import { logger } from '../utils/logger';
@@ -44,7 +44,7 @@ export class NFTMintService {
         
         this.metaplex = Metaplex.make(this.connection)
             .use(keypairIdentity(platformKeypair))
-            .use(bundlrStorage());
+            // bundlrStorage deprecated - using default storage
             
         logger.info('[NFT] Metaplex initialized');
     }
