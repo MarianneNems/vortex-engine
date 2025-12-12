@@ -1,0 +1,31 @@
+# Vortex Engine Configuration
+# Copy this to .env and fill in your values
+
+PORT=3000
+NODE_ENV=production
+
+# Solana
+RPC_URL=https://mainnet.helius-rpc.com/?api-key=YOUR_KEY
+PLATFORM_TREASURY_PUBKEY=YOUR_TREASURY_WALLET_ADDRESS
+TOLA_MINT=H6qNYafSrpCjckH8yVwiPmXYPd1nCNBP8uQMZkv5hkky
+SOLANA_NETWORK=mainnet-beta
+
+# APIs
+JUP_API=https://quote-api.jup.ag/v6
+DEXSCREENER_BASE=https://api.dexscreener.com/latest/dex
+
+# WooCommerce
+WOO_BASE_URL=https://wordpress-1516791-5894715.cloudwaysapps.com
+WOO_CONSUMER_KEY=your_woocommerce_consumer_key
+WOO_CONSUMER_SECRET=your_woocommerce_consumer_secret
+WOO_WEBHOOK_SECRET=your_webhook_secret_for_hmac
+
+# WordPress
+WP_AJAX_URL=https://wordpress-1516791-5894715.cloudwaysapps.com/wp-admin/admin-ajax.php
+WP_API_URL=https://wordpress-1516791-5894715.cloudwaysapps.com/wp-json
+
+# Security
+API_SECRET_KEY=your_secret_key_for_api_auth
+RATE_LIMIT_MAX=100
+RATE_LIMIT_WINDOW=900000
+
