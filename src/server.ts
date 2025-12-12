@@ -48,6 +48,22 @@ app.get('/tola/payments/status/:orderId', (req, res) => {
     });
 });
 
+// WooCommerce Webhooks
+app.post('/wc/webhooks/product-published', (req, res) => {
+    console.log('[WEBHOOK] Product published:', req.body);
+    res.json({ success: true, message: 'Product webhook received' });
+});
+
+app.post('/wc/webhooks/order-created', (req, res) => {
+    console.log('[WEBHOOK] Order created:', req.body);
+    res.json({ success: true, message: 'Order webhook received' });
+});
+
+app.post('/wc/webhooks/order-paid', (req, res) => {
+    console.log('[WEBHOOK] Order paid:', req.body);
+    res.json({ success: true, message: 'Payment webhook received' });
+});
+
 app.listen(PORT, () => {
     console.log(`[VORTEX ENGINE] v4.0.0 listening on port ${PORT}`);
     console.log(`[VORTEX ENGINE] Health check: http://localhost:${PORT}/health`);
