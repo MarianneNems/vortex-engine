@@ -3,7 +3,7 @@
  */
 
 import { Connection, Keypair, PublicKey, clusterApiUrl } from '@solana/web3.js';
-import { Metaplex, keypairIdentity, bundlrStorage } from '@metaplex-foundation/js';
+import { Metaplex, keypairIdentity } from '@metaplex-foundation/js';
 import { DatabaseService } from './database.service';
 import { WooCommerceService } from './woocommerce.service';
 import { logger } from '../utils/logger';
@@ -39,7 +39,7 @@ export class DailyAssetService {
         
         this.metaplex = Metaplex.make(this.connection)
             .use(keypairIdentity(platformKeypair))
-            .use(bundlrStorage());
+            // bundlrStorage deprecated - using default storage
     }
     
     /**
