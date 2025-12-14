@@ -158,12 +158,46 @@ app.post('/wc/webhooks/collector-subscription', (req, res) => {
     });
 });
 
+// Usage payment webhook (AI generation billing)
+app.post('/wc/webhooks/usage-payment', (req, res) => {
+    console.log('[WEBHOOK] Usage payment:', {
+        user_id: req.body?.user?.id,
+        tokens_used: req.body?.usage?.tokens_used,
+        cost_tola: req.body?.usage?.cost_tola,
+        hardware: req.body?.usage?.hardware,
+        billing_type: req.body?.billing?.billing_type,
+        multiplier: req.body?.billing?.multiplier,
+        new_balance: req.body?.balance?.current
+    });
+    
+    const event = {
+        type: 'usage_payment',
+        timestamp: new Date().toISOString(),
+        user_id: req.body?.user?.id,
+        tokens_used: req.body?.usage?.tokens_used,
+        cost: req.body?.usage?.cost_tola,
+        billing_multiplier: req.body?.billing?.multiplier,
+        balance: req.body?.balance?.current
+    };
+    
+    res.json({ 
+        success: true, 
+        message: 'Usage payment webhook received',
+        event: event,
+        billing_confirmed: true
+    });
+});
+
 app.listen(PORT, () => {
     console.log(`[VORTEX ENGINE] v4.0.0 listening on port ${PORT}`);
     console.log(`[VORTEX ENGINE] Health check: http://localhost:${PORT}/health`);
     console.log(`[VORTEX ENGINE] Webhooks active:`);
-    console.log(`  - /wc/webhooks/wallet-connected`);
-    console.log(`  - /wc/webhooks/tola-transaction`);
-    console.log(`  - /wc/webhooks/subscription-activated`);
-    console.log(`  - /wc/webhooks/collector-subscription`);
+    console.log(`  - /wc/webhooks/wallet-connected (Wallet connections)`);
+    console.log(`  - /wc/webhooks/tola-transaction (TOLA purchases/transfers)`);
+    console.log(`  - /wc/webhooks/subscription-activated (Monthly subscriptions)`);
+    console.log(`  - /wc/webhooks/collector-subscription (Collector tier)`);
+    console.log(`  - /wc/webhooks/usage-payment (AI generation billing)`);
+    console.log(`  - /wc/webhooks/order-created (WooCommerce orders)`);
+    console.log(`  - /wc/webhooks/order-paid (Payment completions)`);
+    console.log(`  - /wc/webhooks/product-published (Product publishing)`);
 });
