@@ -8,6 +8,7 @@ import cors from 'cors';
 import bodyParser from 'body-parser';
 import dotenv from 'dotenv';
 import { USDCTransferService, USDCTransferRequest } from './services/usdc-transfer.service';
+import { TOLATransferService, TOLATransferRequest } from './services/tola-transfer.service';
 
 dotenv.config();
 
@@ -17,8 +18,9 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(bodyParser.json());
 
-// Initialize USDC service
+// Initialize services
 const usdcService = new USDCTransferService();
+const tolaService = new TOLATransferService();
 
 // Health check
 app.get('/health', (req, res) => {
@@ -287,6 +289,101 @@ app.get('/api/usdc/verify/:signature', async (req, res) => {
     }
 });
 
+// TOLA Transfer endpoint
+app.post('/api/tola/transfer', async (req, res) => {
+    try {
+        const body = req.body as TOLATransferRequest;
+        
+        if (!body.user_id || !body.wallet_address || !body.amount_tola) {
+            return res.status(400).json({
+                success: false,
+                error: 'Missing required fields'
+            });
+        }
+        
+        console.log('[TOLA TRANSFER] Request:', {
+            user_id: body.user_id,
+            wallet: body.wallet_address,
+            amount: body.amount_tola
+        });
+        
+        const result = await tolaService.transferTOLA(body);
+        
+        if (result.success) {
+            console.log('[TOLA TRANSFER] Success:', result.signature);
+            return res.status(200).json(result);
+        } else {
+            console.error('[TOLA TRANSFER] Failed:', result.error);
+            return res.status(500).json(result);
+        }
+        
+    } catch (error: any) {
+        console.error('[TOLA TRANSFER] Error:', error);
+        return res.status(500).json({
+            success: false,
+            error: error.message || 'Internal server error'
+        });
+    }
+});
+
+// TOLA Balance endpoint
+app.get('/api/tola/balance/:wallet', async (req, res) => {
+    try {
+        const { wallet } = req.params;
+        
+        if (!wallet) {
+            return res.status(400).json({
+                success: false,
+                error: 'Wallet address required'
+            });
+        }
+        
+        const balance = await tolaService.getBalance(wallet);
+        
+        return res.status(200).json({
+            success: true,
+            wallet,
+            balance
+        });
+        
+    } catch (error: any) {
+        console.error('[TOLA BALANCE] Error:', error);
+        return res.status(500).json({
+            success: false,
+            error: error.message || 'Internal server error'
+        });
+    }
+});
+
+// TOLA Transaction verification endpoint
+app.get('/api/tola/verify/:signature', async (req, res) => {
+    try {
+        const { signature } = req.params;
+        
+        if (!signature) {
+            return res.status(400).json({
+                success: false,
+                error: 'Transaction signature required'
+            });
+        }
+        
+        const verified = await tolaService.verifyTransaction(signature);
+        
+        return res.status(200).json({
+            success: true,
+            signature,
+            verified
+        });
+        
+    } catch (error: any) {
+        console.error('[TOLA VERIFY] Error:', error);
+        return res.status(500).json({
+            success: false,
+            error: error.message || 'Internal server error'
+        });
+    }
+});
+
 app.listen(PORT, () => {
     console.log(`[VORTEX ENGINE] v4.0.0 listening on port ${PORT}`);
     console.log(`[VORTEX ENGINE] Health check: http://localhost:${PORT}/health`);
@@ -303,4 +400,9 @@ app.listen(PORT, () => {
     console.log(`  - POST /api/usdc/transfer (Transfer USDC to wallet)`);
     console.log(`  - GET /api/usdc/balance/:wallet (Get USDC balance)`);
     console.log(`  - GET /api/usdc/verify/:signature (Verify transaction)`);
+    console.log(`[VORTEX ENGINE] TOLA API endpoints:`);
+    console.log(`  - POST /api/tola/transfer (Transfer TOLA to wallet)`);
+    console.log(`  - GET /api/tola/balance/:wallet (Get TOLA balance)`);
+    console.log(`  - GET /api/tola/verify/:signature (Verify transaction)`);
+    console.log(`[VORTEX ENGINE] ✅ All blockchain services active`);
 });
