@@ -1,44 +1,53 @@
-# Vortex Engine - TOLA x WooCommerce x Solana Integration
+# Vortex Engine - USDC Payment System + TOLA Incentives
 
-**Version:** 4.0.0  
-**Status:** Production Ready
+**Version:** 4.1.0  
+**Status:** Production Ready  
+**Architecture:** USDC-First with Hidden TOLA Rewards
 
 ---
 
 ## Overview
 
-Complete integration system connecting:
-- **TOLA Token** on Solana blockchain
-- **WooCommerce** marketplace
-- **NFT Minting** via Metaplex
-- **Jupiter DEX** for swap quotes
-- **Dexscreener** for metrics
+Complete blockchain backend for Vortex AI platform:
+- **PRIMARY:** USDC stablecoin payments (user-facing, 1:1 USD)
+- **SECONDARY:** TOLA incentive distribution (backend rewards, hidden)
+- **WooCommerce** marketplace integration
+- **NFT Minting** via Metaplex (uses TOLA)
+- **Solana blockchain** real-time verification
+- **WordPress integration** via webhooks
 
 ---
 
 ## Features
 
-### 1. TOLA Metrics & Quotes
-- Real-time TOLA price, liquidity, volume from Dexscreener
-- Jupiter v6 swap quotes (read-only)
-- Links to Solscan, Raydium, Dexscreener
+### 1. USDC Payment System (PRIMARY - User-Facing)
+- ✅ USDC balance reading from Solana blockchain
+- ✅ USDC transfer to user wallets
+- ✅ Transaction verification on-chain
+- ✅ Integration with Stripe purchases (USD → USDC)
+- ✅ Real-time balance updates
+- ✅ WooCommerce USDC checkout
 
-### 2. Automated NFT Minting
-- When WooCommerce product published → mint NFT automatically
-- 1:1 product-to-NFT mapping
-- Stored in Platform Wallet
-- Metadata includes product details, images, links
+### 2. TOLA Incentive System (SECONDARY - Backend Only)
+- ✅ TOLA reward distribution (hidden from users)
+- ✅ NFT minting using TOLA (appears free to users)
+- ✅ Incentive balance tracking
+- ✅ Automated reward triggers
+- ✅ Hidden cost system for premium features
 
-### 3. Daily Platform Assets
-- Bundle all daily products into single grouped NFT
-- One NFT per day containing all products
-- Purchasable as unified asset on Solana
+### 3. WordPress Integration
+- ✅ Webhook endpoints for subscriptions
+- ✅ Real-time balance synchronization
+- ✅ Transaction logging to WordPress database
+- ✅ User balance crediting
+- ✅ Subscription activation
 
-### 4. TOLA Pay Checkout
-- Users pay with TOLA tokens at checkout
-- QR code + Phantom deep link
-- On-chain verification
-- Auto-complete orders after payment
+### 4. WooCommerce Integration
+- ✅ USDC cryptocurrency checkout
+- ✅ QR code + Phantom deep link
+- ✅ On-chain payment verification
+- ✅ Auto-complete orders
+- ✅ Product-to-NFT minting (TOLA)
 
 ---
 
