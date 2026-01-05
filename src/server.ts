@@ -1,6 +1,9 @@
 /**
- * Vortex Engine - TOLA x WooCommerce x Solana Integration
- * Minimal working version v4.0.0 with USDC support
+ * Vortex Engine - USDC Payment System + TOLA Incentives
+ * Version 4.1.0 - USDC-first architecture with hidden TOLA rewards
+ * 
+ * PRIMARY: USDC stablecoin payments (user-facing)
+ * SECONDARY: TOLA incentive distribution (backend only)
  */
 
 import express from 'express';
@@ -387,28 +390,40 @@ app.get('/api/tola/verify/:signature', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`[VORTEX ENGINE] v4.0.0 listening on port ${PORT}`);
-    console.log(`[VORTEX ENGINE] Health check: http://localhost:${PORT}/health`);
-    console.log(`[VORTEX ENGINE] Webhooks active:`);
-    console.log(`  - /wc/webhooks/wallet-connected (Wallet connections)`);
-    console.log(`  - /wc/webhooks/tola-transaction (TOLA purchases/transfers)`);
-    console.log(`  - /wc/webhooks/subscription-activated (Monthly subscriptions)`);
-    console.log(`  - /wc/webhooks/collector-subscription (Collector tier)`);
-    console.log(`  - /wc/webhooks/usage-payment (AI generation billing)`);
-    console.log(`  - /wc/webhooks/order-created (WooCommerce orders)`);
-    console.log(`  - /wc/webhooks/order-paid (Payment completions)`);
-    console.log(`  - /wc/webhooks/product-published (Product publishing)`);
-    console.log(`[VORTEX ENGINE] USDC API endpoints:`);
-    console.log(`  - POST /api/usdc/transfer (Transfer USDC to wallet)`);
-    console.log(`  - GET /api/usdc/balance/:wallet (Get USDC balance)`);
-    console.log(`  - GET /api/usdc/verify/:signature (Verify transaction)`);
-    console.log(`[VORTEX ENGINE] TOLA API endpoints:`);
-    console.log(`  - POST /api/tola/transfer (Transfer TOLA to wallet)`);
-    console.log(`  - GET /api/tola/balance/:wallet (Get TOLA balance)`);
-    console.log(`  - GET /api/tola/verify/:signature (Verify transaction)`);
-    console.log(`  - POST /api/tola/mint-nft (Mint TOLA incentive NFT)`);
-    console.log(`  - POST /api/tola/upload-metadata (Upload to Arweave)`);
-    console.log(`[VORTEX ENGINE] ✅ All blockchain services active - Real Metaplex minting`);
+    console.log(`\n========================================`);
+    console.log(`[VORTEX ENGINE] v4.1.0 🚀`);
+    console.log(`[VORTEX ENGINE] USDC-First Payment System`);
+    console.log(`========================================\n`);
+    console.log(`🌐 Server: http://localhost:${PORT}`);
+    console.log(`💚 Health: http://localhost:${PORT}/health\n`);
+    
+    console.log(`💰 PRIMARY: USDC Payment System (User-Facing)`);
+    console.log(`  ✅ POST /api/usdc/transfer - Transfer USDC to wallet`);
+    console.log(`  ✅ GET  /api/usdc/balance/:wallet - Get USDC balance`);
+    console.log(`  ✅ GET  /api/usdc/verify/:signature - Verify transaction\n`);
+    
+    console.log(`🎁 SECONDARY: TOLA Incentive System (Backend Only)`);
+    console.log(`  ✅ POST /api/tola/transfer - Distribute TOLA rewards`);
+    console.log(`  ✅ GET  /api/tola/balance/:wallet - Check TOLA incentives`);
+    console.log(`  ✅ GET  /api/tola/verify/:signature - Verify TOLA TX`);
+    console.log(`  ✅ POST /api/tola/mint-nft - Mint NFT with TOLA`);
+    console.log(`  ✅ POST /api/tola/upload-metadata - Upload to Arweave\n`);
+    
+    console.log(`🔗 WordPress Webhooks:`);
+    console.log(`  - POST /wc/webhooks/wallet-connected`);
+    console.log(`  - POST /wc/webhooks/subscription-activated`);
+    console.log(`  - POST /wc/webhooks/usage-payment (USDC)`);
+    console.log(`  - POST /wc/webhooks/order-created`);
+    console.log(`  - POST /wc/webhooks/order-paid`);
+    console.log(`  - POST /wc/webhooks/product-published\n`);
+    
+    console.log(`🔐 Blockchain:`);
+    console.log(`  Network: ${process.env.SOLANA_NETWORK || 'mainnet-beta'}`);
+    console.log(`  USDC Mint: ${process.env.USDC_MINT?.substring(0, 20)}...`);
+    console.log(`  TOLA Mint: ${process.env.TOLA_MINT?.substring(0, 20)}...`);
+    console.log(`  Treasury: ${process.env.TREASURY_WALLET_PUBLIC?.substring(0, 20)}...\n`);
+    
+    console.log(`✅ All systems operational - Ready for requests\n`);
 });
 
 // TOLA NFT Minting endpoint (REAL blockchain minting)

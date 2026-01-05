@@ -1,7 +1,7 @@
 {
   "name": "vortex-engine",
-  "version": "4.0.0",
-  "description": "TOLA x USDC x WooCommerce x Solana Integration Engine",
+  "version": "4.1.0",
+  "description": "Vortex USDC Payment Engine - Solana blockchain backend for USDC payments + TOLA incentives",
   "main": "dist/server.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",

@@ -1,14 +1,23 @@
-# Vortex Engine Configuration
+# Vortex Engine Configuration v4.1.0
 # Copy this to .env and fill in your values
+# USDC-First Architecture
 
 PORT=3000
 NODE_ENV=production
 
-# Solana
-RPC_URL=https://mainnet.helius-rpc.com/?api-key=YOUR_KEY
-PLATFORM_TREASURY_PUBKEY=YOUR_TREASURY_WALLET_ADDRESS
-TOLA_MINT=H6qNYafSrpCjckH8yVwiPmXYPd1nCNBP8uQMZkv5hkky
+# Solana Blockchain
+RPC_URL=https://mainnet.helius-rpc.com/?api-key=YOUR_HELIUS_KEY
 SOLANA_NETWORK=mainnet-beta
+
+# Treasury Wallet (Receives payments & sends USDC/TOLA)
+PLATFORM_TREASURY_PUBKEY=YOUR_TREASURY_WALLET_PUBLIC_ADDRESS
+TREASURY_WALLET_PRIVATE=YOUR_TREASURY_WALLET_PRIVATE_KEY_BASE58
+
+# PRIMARY: USDC (User-Facing Currency)
+USDC_MINT=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+
+# SECONDARY: TOLA (Backend Incentives)
+TOLA_MINT=H6qNYafSrpCjckH8yVwiPmXYPd1nCNBP8uQMZkv5hkky
 
 # APIs
 JUP_API=https://quote-api.jup.ag/v6
