@@ -9,6 +9,7 @@ import bodyParser from 'body-parser';
 import dotenv from 'dotenv';
 import { USDCTransferService, USDCTransferRequest } from './services/usdc-transfer.service';
 import { TOLATransferService, TOLATransferRequest } from './services/tola-transfer.service';
+import { TOLANFTMintService, TOLANFTMintRequest } from './services/tola-nft-mint.service';
 
 dotenv.config();
 
@@ -21,6 +22,7 @@ app.use(bodyParser.json());
 // Initialize services
 const usdcService = new USDCTransferService();
 const tolaService = new TOLATransferService();
+const nftService = new TOLANFTMintService();
 
 // Health check
 app.get('/health', (req, res) => {
@@ -404,5 +406,84 @@ app.listen(PORT, () => {
     console.log(`  - POST /api/tola/transfer (Transfer TOLA to wallet)`);
     console.log(`  - GET /api/tola/balance/:wallet (Get TOLA balance)`);
     console.log(`  - GET /api/tola/verify/:signature (Verify transaction)`);
-    console.log(`[VORTEX ENGINE] ✅ All blockchain services active`);
+    console.log(`  - POST /api/tola/mint-nft (Mint TOLA incentive NFT)`);
+    console.log(`  - POST /api/tola/upload-metadata (Upload to Arweave)`);
+    console.log(`[VORTEX ENGINE] ✅ All blockchain services active - Real Metaplex minting`);
+});
+
+// TOLA NFT Minting endpoint (REAL blockchain minting)
+app.post('/api/tola/mint-nft', async (req, res) => {
+    try {
+        const body = req.body as TOLANFTMintRequest;
+        
+        if (!body.name || !body.uri) {
+            return res.status(400).json({
+                success: false,
+                error: 'Missing required fields: name and uri'
+            });
+        }
+        
+        console.log('[TOLA NFT] Minting request:', {
+            name: body.name,
+            symbol: body.symbol,
+            creators: body.creators?.length || 0
+        });
+        
+        const result = await nftService.mintNFT(body);
+        
+        if (result.success) {
+            console.log('[TOLA NFT] ✅ Minted:', result.mint_address);
+            return res.status(200).json(result);
+        } else {
+            console.error('[TOLA NFT] Failed:', result.error);
+            return res.status(500).json(result);
+        }
+        
+    } catch (error: any) {
+        console.error('[TOLA NFT] Error:', error);
+        return res.status(500).json({
+            success: false,
+            error: error.message || 'Internal server error'
+        });
+    }
+});
+
+// TOLA Metadata Upload endpoint
+app.post('/api/tola/upload-metadata', async (req, res) => {
+    try {
+        const { name, symbol, description, image, attributes } = req.body;
+        
+        if (!name || !image) {
+            return res.status(400).json({
+                success: false,
+                error: 'Missing required fields'
+            });
+        }
+        
+        const metadata = {
+            name,
+            symbol: symbol || 'VRTX',
+            description: description || '',
+            image,
+            attributes: attributes || [],
+            properties: {
+                files: [{ uri: image, type: 'image/png' }],
+                category: 'image'
+            }
+        };
+        
+        const uri = await nftService.uploadMetadata(metadata);
+        
+        return res.status(200).json({
+            success: true,
+            uri
+        });
+        
+    } catch (error: any) {
+        console.error('[TOLA NFT] Metadata upload error:', error);
+        return res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
 });
