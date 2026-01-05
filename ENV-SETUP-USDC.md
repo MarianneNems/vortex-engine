@@ -1,15 +1,42 @@
-# USDC Environment Setup for Vortex Engine
+# USDC Environment Setup for Vortex Engine v4.1.0
 
-## Required Environment Variables for USDC Support
+## Complete Environment Variables for USDC-First System
 
 Add these to your Railway dashboard or `.env` file:
 
 ```bash
-# USDC Configuration (Solana SPL Token)
-USDC_MINT=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
-TREASURY_WALLET_PUBLIC=<your_solana_wallet_public_key>
+# Server Configuration
+PORT=3000
+NODE_ENV=production
+
+# Solana Blockchain
+SOLANA_RPC_URL=https://mainnet.helius-rpc.com/?api-key=YOUR_HELIUS_KEY
+SOLANA_NETWORK=mainnet-beta
+
+# Treasury Wallet (CRITICAL - Secure These!)
+PLATFORM_TREASURY_PUBKEY=<your_solana_wallet_public_key>
 TREASURY_WALLET_PRIVATE=<your_solana_wallet_private_key_base58>
-SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
+
+# PRIMARY: USDC Configuration (User-Facing Currency)
+USDC_MINT=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+
+# SECONDARY: TOLA Configuration (Backend Incentives)
+TOLA_MINT=H6qNYafSrpCjckH8yVwiPmXYPd1nCNBP8uQMZkv5hkky
+
+# WordPress Integration
+WP_AJAX_URL=https://your-wordpress-site.com/wp-admin/admin-ajax.php
+WP_API_URL=https://your-wordpress-site.com/wp-json
+
+# WooCommerce Integration
+WOO_BASE_URL=https://your-wordpress-site.com
+WOO_CONSUMER_KEY=ck_your_key_here
+WOO_CONSUMER_SECRET=cs_your_secret_here
+WOO_WEBHOOK_SECRET=your_webhook_secret
+
+# Security
+API_SECRET_KEY=your_admin_api_secret_key
+RATE_LIMIT_MAX=100
+RATE_LIMIT_WINDOW=900000
 ```
 
 ## How to Get Your Wallet Keys
