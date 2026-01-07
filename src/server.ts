@@ -13,6 +13,7 @@ import dotenv from 'dotenv';
 import { USDCTransferService, USDCTransferRequest } from './services/usdc-transfer.service';
 import { TOLATransferService, TOLATransferRequest } from './services/tola-transfer.service';
 import { TOLANFTMintService, TOLANFTMintRequest } from './services/tola-nft-mint.service';
+import balanceSyncRoutes from './routes/balance-sync.routes';
 
 dotenv.config();
 
@@ -21,6 +22,9 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(bodyParser.json());
+
+// Balance sync routes (v4.0.0)
+app.use('/api', balanceSyncRoutes);
 
 // Initialize services
 const usdcService = new USDCTransferService();
