@@ -21,6 +21,7 @@ export interface TOLANFTMintRequest {
         address: string;
         share: number;
     }>;
+    recipient_wallet?: string;  // User's wallet to receive the NFT after minting
     collection?: string;
     attributes?: Array<{
         trait_type: string;
