@@ -14,6 +14,7 @@ import { USDCTransferService, USDCTransferRequest } from './services/usdc-transf
 import { TOLATransferService, TOLATransferRequest } from './services/tola-transfer.service';
 import { TOLANFTMintService, TOLANFTMintRequest } from './services/tola-nft-mint.service';
 import balanceSyncRoutes from './routes/balance-sync.routes';
+import spendingRoutes from './routes/spending.routes';
 
 dotenv.config();
 
@@ -25,6 +26,9 @@ app.use(bodyParser.json());
 
 // Balance sync routes (v4.0.0)
 app.use('/api', balanceSyncRoutes);
+
+// USDC Spending routes (v4.0.0)
+app.use('/api/spending', spendingRoutes);
 
 // Initialize services
 const usdcService = new USDCTransferService();
@@ -393,47 +397,15 @@ app.get('/api/tola/verify/:signature', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
-    console.log(`\n========================================`);
-    console.log(`[VORTEX ENGINE] v4.1.0 🚀`);
-    console.log(`[VORTEX ENGINE] USDC-First Payment System`);
-    console.log(`========================================\n`);
-    console.log(`🌐 Server: http://localhost:${PORT}`);
-    console.log(`💚 Health: http://localhost:${PORT}/health\n`);
-    
-    console.log(`💰 PRIMARY: USDC Payment System (User-Facing)`);
-    console.log(`  ✅ POST /api/usdc/transfer - Transfer USDC to wallet`);
-    console.log(`  ✅ GET  /api/usdc/balance/:wallet - Get USDC balance`);
-    console.log(`  ✅ GET  /api/usdc/verify/:signature - Verify transaction\n`);
-    
-    console.log(`🎁 SECONDARY: TOLA Incentive System (Backend Only)`);
-    console.log(`  ✅ POST /api/tola/transfer - Distribute TOLA rewards`);
-    console.log(`  ✅ GET  /api/tola/balance/:wallet - Check TOLA incentives`);
-    console.log(`  ✅ GET  /api/tola/verify/:signature - Verify TOLA TX`);
-    console.log(`  ✅ POST /api/tola/mint-nft - Mint NFT with TOLA`);
-    console.log(`  ✅ POST /api/tola/upload-metadata - Upload to Arweave\n`);
-    
-    console.log(`🔗 WordPress Webhooks:`);
-    console.log(`  - POST /wc/webhooks/wallet-connected`);
-    console.log(`  - POST /wc/webhooks/subscription-activated`);
-    console.log(`  - POST /wc/webhooks/usage-payment (USDC)`);
-    console.log(`  - POST /wc/webhooks/order-created`);
-    console.log(`  - POST /wc/webhooks/order-paid`);
-    console.log(`  - POST /wc/webhooks/product-published\n`);
-    
-    console.log(`🔐 Blockchain:`);
-    console.log(`  Network: ${process.env.SOLANA_NETWORK || 'mainnet-beta'}`);
-    console.log(`  USDC Mint: ${process.env.USDC_MINT?.substring(0, 20)}...`);
-    console.log(`  TOLA Mint: ${process.env.TOLA_MINT?.substring(0, 20)}...`);
-    console.log(`  Treasury: ${process.env.TREASURY_WALLET_PUBLIC?.substring(0, 20)}...\n`);
-    
-    console.log(`✅ All systems operational - Ready for requests\n`);
-});
+// ============================================
+// NFT MINTING ENDPOINTS (v4.0.0)
+// MUST be defined BEFORE app.listen()
+// ============================================
 
-// TOLA NFT Minting endpoint (REAL blockchain minting)
+// TOLA NFT Minting endpoint - Mints NFT and transfers to user wallet
 app.post('/api/tola/mint-nft', async (req, res) => {
     try {
-        const body = req.body as TOLANFTMintRequest;
+        const body = req.body as TOLANFTMintRequest & { recipient_wallet?: string };
         
         if (!body.name || !body.uri) {
             return res.status(400).json({
@@ -445,18 +417,64 @@ app.post('/api/tola/mint-nft', async (req, res) => {
         console.log('[TOLA NFT] Minting request:', {
             name: body.name,
             symbol: body.symbol,
+            recipient: body.recipient_wallet || 'treasury',
             creators: body.creators?.length || 0
         });
         
-        const result = await nftService.mintNFT(body);
+        // Step 1: Mint NFT to treasury
+        const mintResult = await nftService.mintNFT(body);
         
-        if (result.success) {
-            console.log('[TOLA NFT] ✅ Minted:', result.mint_address);
-            return res.status(200).json(result);
-        } else {
-            console.error('[TOLA NFT] Failed:', result.error);
-            return res.status(500).json(result);
+        if (!mintResult.success) {
+            console.error('[TOLA NFT] Mint failed:', mintResult.error);
+            return res.status(500).json(mintResult);
         }
+        
+        console.log('[TOLA NFT] Minted to treasury:', mintResult.mint_address);
+        
+        // Step 2: Transfer NFT to user's wallet if recipient provided
+        if (body.recipient_wallet && mintResult.mint_address) {
+            try {
+                console.log('[TOLA NFT] Transferring to user wallet:', body.recipient_wallet);
+                const transferResult = await nftService.transferNFT(
+                    mintResult.mint_address,
+                    body.recipient_wallet
+                );
+                
+                if (transferResult.success) {
+                    console.log('[TOLA NFT] Transfer successful:', transferResult.signature);
+                    return res.status(200).json({
+                        ...mintResult,
+                        owner: body.recipient_wallet,
+                        transfer_signature: transferResult.signature,
+                        transfer_explorer_url: transferResult.explorer_url
+                    });
+                } else {
+                    console.error('[TOLA NFT] Transfer failed:', transferResult.error);
+                    // NFT minted but transfer failed - return partial success
+                    return res.status(200).json({
+                        ...mintResult,
+                        owner: 'treasury',
+                        transfer_status: 'pending',
+                        transfer_error: transferResult.error
+                    });
+                }
+            } catch (transferError: any) {
+                console.error('[TOLA NFT] Transfer exception:', transferError);
+                return res.status(200).json({
+                    ...mintResult,
+                    owner: 'treasury',
+                    transfer_status: 'failed',
+                    transfer_error: transferError.message
+                });
+            }
+        }
+        
+        // No recipient specified - NFT stays in treasury
+        console.log('[TOLA NFT] Minted (no transfer):', mintResult.mint_address);
+        return res.status(200).json({
+            ...mintResult,
+            owner: 'treasury'
+        });
         
     } catch (error: any) {
         console.error('[TOLA NFT] Error:', error);
@@ -467,7 +485,7 @@ app.post('/api/tola/mint-nft', async (req, res) => {
     }
 });
 
-// TOLA Metadata Upload endpoint
+// TOLA Metadata Upload endpoint - Uploads to Arweave via Bundlr
 app.post('/api/tola/upload-metadata', async (req, res) => {
     try {
         const { name, symbol, description, image, attributes } = req.body;
@@ -475,7 +493,7 @@ app.post('/api/tola/upload-metadata', async (req, res) => {
         if (!name || !image) {
             return res.status(400).json({
                 success: false,
-                error: 'Missing required fields'
+                error: 'Missing required fields: name and image'
             });
         }
         
@@ -491,8 +509,10 @@ app.post('/api/tola/upload-metadata', async (req, res) => {
             }
         };
         
+        console.log('[TOLA NFT] Uploading metadata to Arweave:', name);
         const uri = await nftService.uploadMetadata(metadata);
         
+        console.log('[TOLA NFT] Metadata uploaded:', uri);
         return res.status(200).json({
             success: true,
             uri
@@ -505,4 +525,128 @@ app.post('/api/tola/upload-metadata', async (req, res) => {
             error: error.message
         });
     }
+});
+
+// NFT Transfer endpoint - Transfer existing NFT to user
+app.post('/api/tola/transfer-nft', async (req, res) => {
+    try {
+        const { mint_address, recipient_wallet } = req.body;
+        
+        if (!mint_address || !recipient_wallet) {
+            return res.status(400).json({
+                success: false,
+                error: 'Missing required fields: mint_address and recipient_wallet'
+            });
+        }
+        
+        console.log('[TOLA NFT] Transfer request:', { mint_address, recipient_wallet });
+        
+        const result = await nftService.transferNFT(mint_address, recipient_wallet);
+        
+        if (result.success) {
+            console.log('[TOLA NFT] Transfer successful:', result.signature);
+            return res.status(200).json(result);
+        } else {
+            console.error('[TOLA NFT] Transfer failed:', result.error);
+            return res.status(500).json(result);
+        }
+        
+    } catch (error: any) {
+        console.error('[TOLA NFT] Transfer error:', error);
+        return res.status(500).json({
+            success: false,
+            error: error.message || 'Internal server error'
+        });
+    }
+});
+
+// NFT Lookup endpoint - Get NFT details by mint address
+app.get('/api/tola/nft/:mint_address', async (req, res) => {
+    try {
+        const { mint_address } = req.params;
+        
+        if (!mint_address) {
+            return res.status(400).json({
+                success: false,
+                error: 'Mint address required'
+            });
+        }
+        
+        const result = await nftService.getNFT(mint_address);
+        
+        return res.status(result.success ? 200 : 404).json(result);
+        
+    } catch (error: any) {
+        console.error('[TOLA NFT] Lookup error:', error);
+        return res.status(500).json({
+            success: false,
+            error: error.message || 'Internal server error'
+        });
+    }
+});
+
+// NFT Minting webhook for WordPress
+app.post('/wc/webhooks/nft-minted', (req, res) => {
+    console.log('[WEBHOOK] NFT minted:', {
+        user_id: req.body?.user_id,
+        mint_address: req.body?.mint_address,
+        title: req.body?.title
+    });
+    
+    res.json({
+        success: true,
+        message: 'NFT mint webhook received'
+    });
+});
+
+// ============================================
+// SERVER START - Must be LAST
+// ============================================
+
+app.listen(PORT, () => {
+    console.log(`\n========================================`);
+    console.log(`[VORTEX ENGINE] v4.0.0`);
+    console.log(`[VORTEX ENGINE] USDC-First Payment System`);
+    console.log(`========================================\n`);
+    console.log(`Server: http://localhost:${PORT}`);
+    console.log(`Health: http://localhost:${PORT}/health\n`);
+    
+    console.log(`USDC Payment System (User-Facing)`);
+    console.log(`  POST /api/usdc/transfer - Transfer USDC to wallet`);
+    console.log(`  GET  /api/usdc/balance/:wallet - Get USDC balance`);
+    console.log(`  GET  /api/usdc/verify/:signature - Verify transaction\n`);
+    
+    console.log(`USDC Spending Tracking`);
+    console.log(`  POST /api/spending/record - Record USDC spending`);
+    console.log(`  GET  /api/spending/history/:user_id - Get spending history`);
+    console.log(`  GET  /api/spending/summary/:user_id - Get spending summary`);
+    console.log(`  POST /api/spending/webhook - WordPress webhook\n`);
+    
+    console.log(`TOLA Incentive System (Backend Only)`);
+    console.log(`  POST /api/tola/transfer - Distribute TOLA rewards`);
+    console.log(`  GET  /api/tola/balance/:wallet - Check TOLA incentives`);
+    console.log(`  GET  /api/tola/verify/:signature - Verify TOLA TX\n`);
+    
+    console.log(`NFT Minting System`);
+    console.log(`  POST /api/tola/mint-nft - Mint NFT and transfer to user`);
+    console.log(`  POST /api/tola/upload-metadata - Upload metadata to Arweave`);
+    console.log(`  POST /api/tola/transfer-nft - Transfer NFT to wallet`);
+    console.log(`  GET  /api/tola/nft/:mint - Get NFT details\n`);
+    
+    console.log(`WordPress Webhooks:`);
+    console.log(`  POST /wc/webhooks/wallet-connected`);
+    console.log(`  POST /wc/webhooks/subscription-activated`);
+    console.log(`  POST /wc/webhooks/usage-payment (USDC)`);
+    console.log(`  POST /wc/webhooks/order-created`);
+    console.log(`  POST /wc/webhooks/order-paid`);
+    console.log(`  POST /wc/webhooks/product-published`);
+    console.log(`  POST /wc/webhooks/nft-minted\n`);
+    
+    console.log(`Blockchain:`);
+    console.log(`  Network: ${process.env.SOLANA_NETWORK || 'mainnet-beta'}`);
+    console.log(`  USDC Mint: ${process.env.USDC_MINT?.substring(0, 20) || 'not set'}...`);
+    console.log(`  TOLA Mint: ${process.env.TOLA_MINT?.substring(0, 20) || 'not set'}...`);
+    console.log(`  Treasury: ${process.env.TREASURY_WALLET_PUBLIC?.substring(0, 20) || 'not set'}...\n`);
+    
+    console.log(`All systems operational - Ready for requests\n`);
 });
