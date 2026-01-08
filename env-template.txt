@@ -1,40 +1,95 @@
-# Vortex Engine Configuration v4.1.0
+# Vortex Engine Configuration v4.0.0
 # Copy this to .env and fill in your values
-# USDC-First Architecture
+# USDC-First Architecture with NFT Minting
 
 PORT=3000
 NODE_ENV=production
 
-# Solana Blockchain
-RPC_URL=https://mainnet.helius-rpc.com/?api-key=YOUR_HELIUS_KEY
+# ============================================
+# SOLANA BLOCKCHAIN CONFIGURATION
+# ============================================
+
+# RPC URL - Use Helius, QuickNode, or other reliable provider
+# Free tier: https://api.mainnet-beta.solana.com (rate limited)
+# Recommended: Helius (https://helius.xyz) or QuickNode
+SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
 SOLANA_NETWORK=mainnet-beta
 
-# Treasury Wallet (Receives payments & sends USDC/TOLA)
-PLATFORM_TREASURY_PUBKEY=YOUR_TREASURY_WALLET_PUBLIC_ADDRESS
+# ============================================
+# TREASURY WALLET (CRITICAL - KEEP SECURE)
+# ============================================
+
+# Public address of your treasury wallet
+TREASURY_WALLET_PUBLIC=YOUR_TREASURY_WALLET_PUBLIC_ADDRESS
+
+# Private key in Base58 format (NEVER share this)
+# Generate with: solana-keygen new --outfile treasury.json
+# Convert to base58: cat treasury.json | base58
 TREASURY_WALLET_PRIVATE=YOUR_TREASURY_WALLET_PRIVATE_KEY_BASE58
 
-# PRIMARY: USDC (User-Facing Currency)
+# ============================================
+# TOKEN MINT ADDRESSES (Solana Mainnet)
+# ============================================
+
+# USDC (Circle's official Solana USDC)
 USDC_MINT=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
 
-# SECONDARY: TOLA (Backend Incentives)
+# TOLA (Vortex incentive token)
 TOLA_MINT=H6qNYafSrpCjckH8yVwiPmXYPd1nCNBP8uQMZkv5hkky
 
-# APIs
-JUP_API=https://quote-api.jup.ag/v6
-DEXSCREENER_BASE=https://api.dexscreener.com/latest/dex
+# ============================================
+# NFT MINTING CONFIGURATION
+# ============================================
 
-# WooCommerce
-WOO_BASE_URL=https://wordpress-1516791-5894715.cloudwaysapps.com
+# Bundlr/Arweave for metadata storage
+BUNDLR_ADDRESS=https://node1.bundlr.network
+
+# Platform royalty basis points (500 = 5%)
+NFT_ROYALTY_BPS=500
+
+# ============================================
+# WORDPRESS INTEGRATION
+# ============================================
+
+# Your WordPress site URL
+WP_BASE_URL=https://your-site.com
+WP_AJAX_URL=https://your-site.com/wp-admin/admin-ajax.php
+WP_API_URL=https://your-site.com/wp-json
+
+# WooCommerce API credentials
 WOO_CONSUMER_KEY=your_woocommerce_consumer_key
 WOO_CONSUMER_SECRET=your_woocommerce_consumer_secret
 WOO_WEBHOOK_SECRET=your_webhook_secret_for_hmac
 
-# WordPress
-WP_AJAX_URL=https://wordpress-1516791-5894715.cloudwaysapps.com/wp-admin/admin-ajax.php
-WP_API_URL=https://wordpress-1516791-5894715.cloudwaysapps.com/wp-json
+# ============================================
+# EXTERNAL APIS
+# ============================================
 
-# Security
+# Jupiter Aggregator (for token swaps)
+JUP_API=https://quote-api.jup.ag/v6
+
+# DexScreener (for price data)
+DEXSCREENER_BASE=https://api.dexscreener.com/latest/dex
+
+# ============================================
+# SECURITY
+# ============================================
+
+# API authentication key
 API_SECRET_KEY=your_secret_key_for_api_auth
+
+# Rate limiting
 RATE_LIMIT_MAX=100
 RATE_LIMIT_WINDOW=900000
+
+# ============================================
+# DEPLOYMENT CHECKLIST
+# ============================================
+# [ ] Treasury wallet has SOL for gas fees (min 0.1 SOL)
+# [ ] Treasury wallet has USDC token account
+# [ ] Treasury wallet has TOLA token account
+# [ ] TREASURY_WALLET_PRIVATE is set correctly
+# [ ] SOLANA_RPC_URL is a reliable provider
+# [ ] WordPress webhook endpoints are configured
+# [ ] WooCommerce API credentials are valid
 
