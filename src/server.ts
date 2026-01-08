@@ -15,6 +15,8 @@ import { TOLATransferService, TOLATransferRequest } from './services/tola-transf
 import { TOLANFTMintService, TOLANFTMintRequest } from './services/tola-nft-mint.service';
 import balanceSyncRoutes from './routes/balance-sync.routes';
 import spendingRoutes from './routes/spending.routes';
+import swapRoutes from './routes/swap.routes';
+import tolaMasterpieceRoutes from './routes/tola-masterpiece.routes';
 
 dotenv.config();
 
@@ -29,6 +31,12 @@ app.use('/api', balanceSyncRoutes);
 
 // USDC Spending routes (v4.0.0)
 app.use('/api/spending', spendingRoutes);
+
+// NFT Swap routes (v4.0.0)
+app.use('/api/swap', swapRoutes);
+
+// TOLA Masterpiece routes (v4.0.0)
+app.use('/api/tola-masterpiece', tolaMasterpieceRoutes);
 
 // Initialize services
 const usdcService = new USDCTransferService();
@@ -616,11 +624,27 @@ app.listen(PORT, () => {
     console.log(`  GET  /api/usdc/balance/:wallet - Get USDC balance`);
     console.log(`  GET  /api/usdc/verify/:signature - Verify transaction\n`);
     
-    console.log(`USDC Spending Tracking`);
+    console.log(`USDC Spending & Earning Tracking`);
     console.log(`  POST /api/spending/record - Record USDC spending`);
+    console.log(`  POST /api/spending/earning - Record vendor earning (WCFM)`);
     console.log(`  GET  /api/spending/history/:user_id - Get spending history`);
     console.log(`  GET  /api/spending/summary/:user_id - Get spending summary`);
+    console.log(`  GET  /api/spending/earnings/:user_id - Get vendor earnings`);
     console.log(`  POST /api/spending/webhook - WordPress webhook\n`);
+    
+    console.log(`NFT Swap System (Artists Only)`);
+    console.log(`  POST /api/swap/execute - Execute single NFT swap`);
+    console.log(`  POST /api/swap/execute-collection - Execute collection swap`);
+    console.log(`  GET  /api/swap/verify/:swap_id - Verify swap status`);
+    console.log(`  GET  /api/swap/fees - Get swap fee structure`);
+    console.log(`  Fee: 5 USDC per user (10 USDC total)\n`);
+    
+    console.log(`TOLA-ART Masterpiece System (Daily at 00:00 Miami)`);
+    console.log(`  POST /api/tola-masterpiece/distribute-royalty - Distribute royalties`);
+    console.log(`  POST /api/tola-masterpiece/verify-secondary-sale - Verify sale`);
+    console.log(`  GET  /api/tola-masterpiece/status - System status`);
+    console.log(`  Minted on: TOLA (Solana) | Price: 900 USDC`);
+    console.log(`  Royalties: 5% Platform + 15% Artists (20% on-chain)\n`);
     
     console.log(`TOLA Incentive System (Backend Only)`);
     console.log(`  POST /api/tola/transfer - Distribute TOLA rewards`);
@@ -640,7 +664,10 @@ app.listen(PORT, () => {
     console.log(`  POST /wc/webhooks/order-created`);
     console.log(`  POST /wc/webhooks/order-paid`);
     console.log(`  POST /wc/webhooks/product-published`);
-    console.log(`  POST /wc/webhooks/nft-minted\n`);
+    console.log(`  POST /wc/webhooks/nft-minted`);
+    console.log(`  POST /api/swap/webhook/completed`);
+    console.log(`  POST /api/tola-masterpiece/webhook/created`);
+    console.log(`  POST /api/tola-masterpiece/webhook/sold\n`);
     
     console.log(`Blockchain:`);
     console.log(`  Network: ${process.env.SOLANA_NETWORK || 'mainnet-beta'}`);
