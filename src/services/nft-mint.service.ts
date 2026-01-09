@@ -1,15 +1,19 @@
 /**
  * NFT Minting Service - Metaplex Integration
+ * 
+ * @version 4.0.0
+ * @description Handles NFT minting for WooCommerce products on Solana
  */
 
 import { Connection, Keypair, PublicKey, clusterApiUrl } from '@solana/web3.js';
 import { Metaplex, keypairIdentity, toMetaplexFile } from '@metaplex-foundation/js';
+import * as bs58 from 'bs58';
 import axios from 'axios';
 import { DatabaseService } from './database.service';
 import { logger } from '../utils/logger';
 
-const RPC_URL = process.env.RPC_URL || clusterApiUrl('mainnet-beta');
-const PLATFORM_TREASURY = process.env.PLATFORM_TREASURY_PUBKEY || '';
+const RPC_URL = process.env.SOLANA_RPC_URL || process.env.RPC_URL || clusterApiUrl('mainnet-beta');
+const PLATFORM_TREASURY = process.env.PLATFORM_TREASURY_PUBKEY || process.env.TREASURY_WALLET_PUBLIC || '';
 
 interface ProductNFTData {
     productId: number;
@@ -33,26 +37,69 @@ export class NFTMintService {
     private connection: Connection;
     private metaplex: Metaplex;
     private db: DatabaseService;
+    private initialized: boolean = false;
     
     constructor() {
         this.connection = new Connection(RPC_URL, 'confirmed');
         this.db = new DatabaseService();
         
-        // Note: In production, use a secure key management system
-        // This is a placeholder - replace with actual Platform Wallet keypair
-        const platformKeypair = Keypair.generate(); // REPLACE WITH ACTUAL KEYPAIR FROM SECURE STORAGE
+        // Load platform keypair from environment (secure)
+        const privateKeyBase58 = process.env.TREASURY_WALLET_PRIVATE;
         
-        this.metaplex = Metaplex.make(this.connection)
-            .use(keypairIdentity(platformKeypair))
-            // bundlrStorage deprecated - using default storage
-            
-        logger.info('[NFT] Metaplex initialized');
+        if (!privateKeyBase58) {
+            logger.warn('[NFT] TREASURY_WALLET_PRIVATE not set - NFT minting will fail until configured');
+            // Create dummy keypair for initialization (will fail on actual mint)
+            const dummyKeypair = Keypair.generate();
+            this.metaplex = Metaplex.make(this.connection)
+                .use(keypairIdentity(dummyKeypair));
+            this.initialized = false;
+            logger.info('[NFT] Metaplex initialized in DEMO mode (no real minting)');
+        } else {
+            try {
+                const privateKeyBytes = bs58.decode(privateKeyBase58);
+                const platformKeypair = Keypair.fromSecretKey(privateKeyBytes);
+                
+                this.metaplex = Metaplex.make(this.connection)
+                    .use(keypairIdentity(platformKeypair));
+                    
+                this.initialized = true;
+                logger.info('[NFT] Metaplex initialized with treasury keypair - Real minting ready');
+                logger.info(`[NFT] Treasury wallet: ${platformKeypair.publicKey.toString()}`);
+            } catch (error) {
+                logger.error('[NFT] Failed to load treasury keypair:', error);
+                throw new Error('Invalid TREASURY_WALLET_PRIVATE - check Base58 encoding');
+            }
+        }
+    }
+    
+    /**
+     * Check if service is properly initialized for real minting
+     */
+    isReady(): boolean {
+        return this.initialized;
+    }
+    
+    /**
+     * Get service status
+     */
+    getStatus(): { ready: boolean; treasury: string; rpc: string } {
+        return {
+            ready: this.initialized,
+            treasury: PLATFORM_TREASURY || 'NOT_CONFIGURED',
+            rpc: RPC_URL
+        };
     }
     
     /**
      * Mint NFT for WooCommerce product
      */
     async mintProductNFT(data: ProductNFTData): Promise<MintResult> {
+        // Check if service is ready for real minting
+        if (!this.initialized) {
+            logger.error('[NFT] Service not initialized - TREASURY_WALLET_PRIVATE not configured');
+            throw new Error('NFT minting service not configured. Set TREASURY_WALLET_PRIVATE environment variable.');
+        }
+        
         try {
             logger.info(`[NFT] Minting NFT for product ${data.productId}: ${data.name}`);
             
