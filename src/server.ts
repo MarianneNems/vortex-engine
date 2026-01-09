@@ -1,9 +1,11 @@
 /**
  * Vortex Engine - USDC Payment System + TOLA Incentives
- * Version 4.1.0 - USDC-first architecture with hidden TOLA rewards
+ * Version 4.1.1 - USDC-first architecture with hidden TOLA rewards
  * 
  * PRIMARY: USDC stablecoin payments (user-facing)
  * SECONDARY: TOLA incentive distribution (backend only)
+ * 
+ * v4.1.1 - Added assets routes for daily NFT bundles
  */
 
 import express from 'express';
@@ -23,6 +25,7 @@ import cosmosRoutes from './routes/cosmos.routes';
 import royaltyRoutes from './routes/royalty.routes';
 import kvCacheRoutes from './routes/kv-cache.routes';
 import scalingRoutes from './routes/scaling.routes';
+import { assetsRoutes } from './routes/assets.routes';
 
 dotenv.config();
 
@@ -61,6 +64,9 @@ app.use('/api/kv-cache', kvCacheRoutes);
 
 // AI Scaling routes (v4.0.0) - Scale up/out, heartbeat sync, distributed memory
 app.use('/api/scaling', scalingRoutes);
+
+// Assets routes (v4.0.2) - Daily platform assets, product NFT bundles
+app.use('/api/assets', assetsRoutes);
 
 // Initialize services
 const usdcService = new USDCTransferService();
