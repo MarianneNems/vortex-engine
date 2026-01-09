@@ -17,6 +17,12 @@ import balanceSyncRoutes from './routes/balance-sync.routes';
 import spendingRoutes from './routes/spending.routes';
 import swapRoutes from './routes/swap.routes';
 import tolaMasterpieceRoutes from './routes/tola-masterpiece.routes';
+import evolutionRoutes from './routes/evolution.routes';
+import agenticRoutes from './routes/agentic.routes';
+import cosmosRoutes from './routes/cosmos.routes';
+import royaltyRoutes from './routes/royalty.routes';
+import kvCacheRoutes from './routes/kv-cache.routes';
+import scalingRoutes from './routes/scaling.routes';
 
 dotenv.config();
 
@@ -37,6 +43,24 @@ app.use('/api/swap', swapRoutes);
 
 // TOLA Masterpiece routes (v4.0.0)
 app.use('/api/tola-masterpiece', tolaMasterpieceRoutes);
+
+// Evolution System routes (v4.1.0) - Test-time scaling, genetic evolution, open models
+app.use('/api/evolution', evolutionRoutes);
+
+// Agentic AI routes (v4.0.0) - Intelligent routing, NVIDIA integration, unified pipeline
+app.use('/api/agentic', agenticRoutes);
+
+// Cosmos AI routes (v4.0.0) - Physical robot embodiment, SECRET SAUCE
+app.use('/api/cosmos', cosmosRoutes);
+
+// Royalty Enforcement routes (v4.0.0) - Perpetual 5% royalty on data exports
+app.use('/api/royalty', royaltyRoutes);
+
+// KV Cache routes (v4.0.0) - Fast token generation with cached key-values
+app.use('/api/kv-cache', kvCacheRoutes);
+
+// AI Scaling routes (v4.0.0) - Scale up/out, heartbeat sync, distributed memory
+app.use('/api/scaling', scalingRoutes);
 
 // Initialize services
 const usdcService = new USDCTransferService();
@@ -613,8 +637,8 @@ app.post('/wc/webhooks/nft-minted', (req, res) => {
 
 app.listen(PORT, () => {
     console.log(`\n========================================`);
-    console.log(`[VORTEX ENGINE] v4.0.0`);
-    console.log(`[VORTEX ENGINE] USDC-First Payment System`);
+    console.log(`[VORTEX ENGINE] v4.1.0`);
+    console.log(`[VORTEX ENGINE] USDC-First + AI Evolution`);
     console.log(`========================================\n`);
     console.log(`Server: http://localhost:${PORT}`);
     console.log(`Health: http://localhost:${PORT}/health\n`);
@@ -657,6 +681,61 @@ app.listen(PORT, () => {
     console.log(`  POST /api/tola/transfer-nft - Transfer NFT to wallet`);
     console.log(`  GET  /api/tola/nft/:mint - Get NFT details\n`);
     
+    console.log(`AI Evolution System (v4.1.0)`);
+    console.log(`  Test-Time Scaling:`);
+    console.log(`    POST /api/evolution/scaling/start - Start scaling session`);
+    console.log(`    POST /api/evolution/scaling/complete - Complete session`);
+    console.log(`    GET  /api/evolution/scaling/status - Get status`);
+    console.log(`  Genetic Evolution:`);
+    console.log(`    POST /api/evolution/genetic/update - Update population`);
+    console.log(`    POST /api/evolution/genetic/fitness - Record fitness`);
+    console.log(`    GET  /api/evolution/genetic/status - Get status`);
+    console.log(`  Open Model Hub:`);
+    console.log(`    POST /api/evolution/models/discovered - Record discovery`);
+    console.log(`    POST /api/evolution/models/integrate - Integrate technique`);
+    console.log(`    GET  /api/evolution/models/status - Get status`);
+    console.log(`  Real-Time Thinking:`);
+    console.log(`    POST /api/evolution/thinking/record - Record session`);
+    console.log(`    GET  /api/evolution/thinking/status - Get status`);
+    console.log(`  Training Observatory:`);
+    console.log(`    POST /api/evolution/observatory/metric - Record metric`);
+    console.log(`    GET  /api/evolution/observatory/levels - Training levels`);
+    console.log(`    GET  /api/evolution/observatory/metrics - Aggregated metrics`);
+    console.log(`  GET  /api/evolution/status - Full system status\n`);
+    
+    console.log(`Agentic AI System (v4.0.0)`);
+    console.log(`  Intelligent Routing:`);
+    console.log(`    POST /api/agentic/route - Route request to optimal agent`);
+    console.log(`    POST /api/agentic/classify - Classify intent from prompt`);
+    console.log(`    GET  /api/agentic/agents - Get available agents`);
+    console.log(`    POST /api/agentic/execute - Execute with selected agent`);
+    console.log(`  NVIDIA Integration:`);
+    console.log(`    POST /api/agentic/nvidia/chat - Chat with Nemotron models`);
+    console.log(`    POST /api/agentic/nvidia/embed - Generate embeddings`);
+    console.log(`    GET  /api/agentic/nvidia/models - Get NVIDIA models`);
+    console.log(`  Unified Pipeline:`);
+    console.log(`    POST /api/agentic/pipeline/execute - Execute full pipeline`);
+    console.log(`    GET  /api/agentic/pipeline/status - Get pipeline status`);
+    console.log(`    POST /api/agentic/webhook/wordpress - WordPress webhook\n`);
+    
+    console.log(`Cosmos AI System (v4.0.0) - SECRET SAUCE`);
+    console.log(`  Robot Management:`);
+    console.log(`    POST /api/cosmos/robot/:id/connect - Connect robot`);
+    console.log(`    POST /api/cosmos/robot/:id/heartbeat - Robot heartbeat`);
+    console.log(`    POST /api/cosmos/robot/:id/disconnect - Disconnect robot`);
+    console.log(`    GET  /api/cosmos/robot/:id/status - Get robot status`);
+    console.log(`  Robot Commands:`);
+    console.log(`    POST /api/cosmos/robot/:id/command - Send command`);
+    console.log(`    POST /api/cosmos/robot/:id/sensor - Receive sensor data`);
+    console.log(`    POST /api/cosmos/robot/:id/speak - Speech synthesis`);
+    console.log(`    POST /api/cosmos/robot/:id/move - Movement commands`);
+    console.log(`    POST /api/cosmos/robot/:id/create - Art creation`);
+    console.log(`  User Data:`);
+    console.log(`    GET  /api/cosmos/user/:id/export - Export user profile`);
+    console.log(`  Transactions:`);
+    console.log(`    POST /api/cosmos/transaction/initiate - Start transaction`);
+    console.log(`    POST /api/cosmos/transaction/:id/confirm - Confirm\n`);
+    
     console.log(`WordPress Webhooks:`);
     console.log(`  POST /wc/webhooks/wallet-connected`);
     console.log(`  POST /wc/webhooks/subscription-activated`);
@@ -667,7 +746,8 @@ app.listen(PORT, () => {
     console.log(`  POST /wc/webhooks/nft-minted`);
     console.log(`  POST /api/swap/webhook/completed`);
     console.log(`  POST /api/tola-masterpiece/webhook/created`);
-    console.log(`  POST /api/tola-masterpiece/webhook/sold\n`);
+    console.log(`  POST /api/tola-masterpiece/webhook/sold`);
+    console.log(`  POST /api/evolution/webhook/wordpress - Evolution updates\n`);
     
     console.log(`Blockchain:`);
     console.log(`  Network: ${process.env.SOLANA_NETWORK || 'mainnet-beta'}`);
