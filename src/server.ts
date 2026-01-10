@@ -638,6 +638,100 @@ app.post('/wc/webhooks/nft-minted', (req, res) => {
 });
 
 // ============================================
+// ATELIER LAB WEBHOOKS (v4.0.0)
+// ============================================
+
+// Generation completed webhook
+app.post('/wc/webhooks/generation-completed', (req, res) => {
+    console.log('[WEBHOOK] Generation completed:', {
+        user_id: req.body?.user_id,
+        type: req.body?.type,
+        count: req.body?.count,
+        cost: req.body?.cost,
+        agent: req.body?.agent
+    });
+    
+    res.json({
+        success: true,
+        message: 'Generation webhook received',
+        timestamp: new Date().toISOString()
+    });
+});
+
+// Style transfer webhook
+app.post('/wc/webhooks/style-transfer', (req, res) => {
+    console.log('[WEBHOOK] Style transfer:', {
+        user_id: req.body?.user_id,
+        style_type: req.body?.style_type,
+        preset: req.body?.preset,
+        cost: req.body?.cost
+    });
+    
+    res.json({
+        success: true,
+        message: 'Style transfer webhook received'
+    });
+});
+
+// Artwork saved webhook
+app.post('/wc/webhooks/artwork-saved', (req, res) => {
+    console.log('[WEBHOOK] Artwork saved:', {
+        user_id: req.body?.user_id,
+        post_id: req.body?.post_id,
+        visibility: req.body?.visibility
+    });
+    
+    res.json({
+        success: true,
+        message: 'Artwork saved webhook received'
+    });
+});
+
+// Product listed webhook (WCFM)
+app.post('/wc/webhooks/product-listed', (req, res) => {
+    console.log('[WEBHOOK] Product listed:', {
+        user_id: req.body?.user_id,
+        product_id: req.body?.product_id,
+        price: req.body?.price,
+        source: req.body?.source || 'atelier-lab'
+    });
+    
+    res.json({
+        success: true,
+        message: 'Product listing webhook received'
+    });
+});
+
+// HURAII Vision analysis webhook
+app.post('/wc/webhooks/huraii-vision', (req, res) => {
+    console.log('[WEBHOOK] HURAII Vision:', {
+        user_id: req.body?.user_id,
+        analysis_level: req.body?.analysis_level,
+        has_description: !!req.body?.description
+    });
+    
+    res.json({
+        success: true,
+        message: 'HURAII Vision webhook received'
+    });
+});
+
+// Style-guided generation webhook
+app.post('/wc/webhooks/style-guided-generation', (req, res) => {
+    console.log('[WEBHOOK] Style-guided generation:', {
+        user_id: req.body?.user_id,
+        style_fidelity: req.body?.style_fidelity,
+        count: req.body?.count,
+        has_style_image: !!req.body?.style_image
+    });
+    
+    res.json({
+        success: true,
+        message: 'Style-guided generation webhook received'
+    });
+});
+
+// ============================================
 // SERVER START - Must be LAST
 // ============================================
 
