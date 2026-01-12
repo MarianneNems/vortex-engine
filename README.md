@@ -1,8 +1,9 @@
 # Vortex Engine - USDC Payment System + TOLA Incentives
 
-**Version:** 4.1.0  
+**Version:** 4.1.1  
 **Status:** Production Ready  
-**Architecture:** USDC-First with Hidden TOLA Rewards
+**Architecture:** USDC-First with Hidden TOLA Rewards  
+**Platform Wallet:** EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz (User #52)
 
 ---
 
@@ -71,7 +72,7 @@ PLATFORM_TREASURY_PUBKEY=your_treasury_wallet_address
 TOLA_MINT=H6qNYafSrpCjckH8yVwiPmXYPd1nCNBP8uQMZkv5hkky
 
 # WooCommerce
-WOO_BASE_URL=https://wordpress-1516791-5894715.cloudwaysapps.com
+WOO_BASE_URL=https://vortexartec.com
 WOO_CONSUMER_KEY=your_woocommerce_key
 WOO_CONSUMER_SECRET=your_woocommerce_secret
 WOO_WEBHOOK_SECRET=your_webhook_secret
