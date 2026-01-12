@@ -18,7 +18,11 @@
  * - 5% Creator Royalty (VortexArtec on-chain)
  * - 15% Marketplace Fee (VortexArtec)
  * - First Sale: 15% marketplace (135 USDC) + 85% artists (765 USDC)
- * - Owner: User #52 | Wallet: EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz
+ * 
+ * WALLET STRUCTURE:
+ * - Platform Commission (15%): 6VPLAVjote7Bqo96CbJ5kfrotkdU9BF3ACeqsJtcvH8g
+ * - TOLA Incentive (User #52): EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz
+ * - Market Treasury: GYrv6jREdH2Rajd93AtxCghotazKXt6qwxNZtyL6ssp2
  * 
  * @package VortexEngine
  * @version 4.0.0
@@ -38,8 +42,14 @@ const router = Router();
 // USDC Mint on Solana mainnet
 const USDC_MINT = new PublicKey(process.env.USDC_MINT || 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
 
-// Platform wallet for TOLA operations (VortexArtec #52)
-const PLATFORM_WALLET = process.env.PLATFORM_TREASURY_PUBKEY || 'EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz';
+// Platform wallet for marketplace commissions (15%)
+const PLATFORM_COMMISSION_WALLET = process.env.PLATFORM_COMMISSION_WALLET || '6VPLAVjote7Bqo96CbJ5kfrotkdU9BF3ACeqsJtcvH8g';
+
+// TOLA Incentive wallet (User #52) - for distributing TOLA rewards to users
+const TOLA_INCENTIVE_WALLET = process.env.TOLA_INCENTIVE_WALLET || 'EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz';
+
+// Market Treasury for operations
+const MARKET_TREASURY_WALLET = process.env.MARKET_TREASURY_WALLET || 'GYrv6jREdH2Rajd93AtxCghotazKXt6qwxNZtyL6ssp2';
 
 // Interfaces
 interface RoyaltyDistributionRequest {

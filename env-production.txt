@@ -18,15 +18,36 @@ SOLANA_RPC_URL=https://mainnet.helius-rpc.com/?api-key=661daee0-4ebb-4bbd-83be-4
 SOLANA_NETWORK=mainnet-beta
 
 # ============================================
-# TREASURY WALLET (CRITICAL - KEEP SECURE)
+# WALLET STRUCTURE (CRITICAL - KEEP SECURE)
 # ============================================
+# Each wallet has a specific purpose:
+#
+# 1. PLATFORM_COMMISSION_WALLET - Receives 15% marketplace commissions
+# 2. TOLA_INCENTIVE_WALLET - User #52's wallet for TOLA incentive distribution
+# 3. MARKET_TREASURY_WALLET - Market operations and liquidity
+# 4. CONTRACT_OWNER_WALLET - 5% smart contract royalties on NFTs
+# 5. WALLET_MANAGEMENT_WALLET - 0.5% wallet management fees
+# 6. OPERATOR_MINTER_WALLET - NFT minting operations (max 15%)
 
-# Public address of your treasury wallet
-TREASURY_WALLET_PUBLIC=EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz
+# Platform Commission Wallet (15% marketplace fees from WooCommerce/WCFM)
+PLATFORM_COMMISSION_WALLET=6VPLAVjote7Bqo96CbJ5kfrotkdU9BF3ACeqsJtcvH8g
 
-# Private key in Base58 format (NEVER share this)
-# Generate with: solana-keygen new --outfile treasury.json
-# Convert to base58: cat treasury.json | base58
+# TOLA Incentive Wallet (User #52) - Distributes TOLA rewards to users
+TOLA_INCENTIVE_WALLET=EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz
+
+# Market Treasury - Operations and USDC disbursements
+MARKET_TREASURY_WALLET=GYrv6jREdH2Rajd93AtxCghotazKXt6qwxNZtyL6ssp2
+
+# Contract Owner Wallet - 5% royalty on all NFT mints (enforced by smart contract)
+CONTRACT_OWNER_WALLET=DrdrYs68TFgkiNP2y6mQJD8c3Q8DbRPRyjsYvL5oCQ6u
+
+# Wallet Management Fee Wallet - 0.5% fee on TOLA purchases via Stripe
+WALLET_MANAGEMENT_WALLET=3c6v1xUqkve8kLLyMQkVraqRGCWo4UmY7QLa185nR9Fx
+
+# Operator/Minter Wallet - Creator + Seller royalties (max 15%)
+OPERATOR_MINTER_WALLET=FPiwDDtdU2G5y3pi7TX3eWAzZJoQ2mPecv42iBz9xUB3
+
+# Treasury Private Key (for automated distributions) - NEVER share this
 # REPLACE THIS WITH YOUR ACTUAL PRIVATE KEY:
 TREASURY_WALLET_PRIVATE=YOUR_BASE58_PRIVATE_KEY_HERE
 
@@ -50,8 +71,8 @@ BUNDLR_ADDRESS=https://node1.bundlr.network
 # Platform royalty basis points (500 = 5%)
 NFT_ROYALTY_BPS=500
 
-# Platform treasury for royalties (same as TREASURY_WALLET_PUBLIC)
-PLATFORM_TREASURY_PUBKEY=EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz
+# Legacy compatibility - uses Market Treasury
+PLATFORM_TREASURY_PUBKEY=GYrv6jREdH2Rajd93AtxCghotazKXt6qwxNZtyL6ssp2
 
 # ============================================
 # WORDPRESS INTEGRATION
