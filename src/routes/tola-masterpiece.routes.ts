@@ -14,10 +14,11 @@
  * - Participant tracking
  * - Distribution queue processing
  * 
- * ROYALTIES:
- * - 5% Platform (on-chain TOLA)
- * - 15% Artists (divided equally)
- * - First Sale: 15% platform (135 USDC) + 85% artists (765 USDC)
+ * ROYALTIES (v4.0.0 Updated):
+ * - 5% Creator Royalty (VortexArtec on-chain)
+ * - 15% Marketplace Fee (VortexArtec)
+ * - First Sale: 15% marketplace (135 USDC) + 85% artists (765 USDC)
+ * - Owner: User #52 | Wallet: EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz
  * 
  * @package VortexEngine
  * @version 4.0.0
@@ -37,8 +38,8 @@ const router = Router();
 // USDC Mint on Solana mainnet
 const USDC_MINT = new PublicKey(process.env.USDC_MINT || 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
 
-// Platform wallet for TOLA operations
-const PLATFORM_WALLET = process.env.PLATFORM_TREASURY_PUBKEY || '6VPLAVjote7Bqo96CbJ5kfrotkdU9BF3ACeqsJtcvH8g';
+// Platform wallet for TOLA operations (VortexArtec #52)
+const PLATFORM_WALLET = process.env.PLATFORM_TREASURY_PUBKEY || 'EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz';
 
 // Interfaces
 interface RoyaltyDistributionRequest {

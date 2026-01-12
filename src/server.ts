@@ -78,7 +78,7 @@ app.get('/health', (req, res) => {
     res.json({
         success: true,
         status: 'online',
-        version: '4.0.0',
+        version: '4.1.1',
         timestamp: new Date().toISOString()
     });
 });

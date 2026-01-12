@@ -1,0 +1,86 @@
+# Vortex Engine Production Configuration v4.0.0
+# =============================================
+# INSTRUCTIONS: Rename this file to .env
+# CRITICAL: Keep this file secure and never commit to git
+# Generated: January 9, 2026
+
+PORT=3000
+NODE_ENV=production
+
+# ============================================
+# SOLANA BLOCKCHAIN CONFIGURATION
+# ============================================
+
+# Use Helius or QuickNode for reliable RPC (avoid rate limits)
+# Get free Helius key at: https://helius.xyz
+# Replace YOUR_HELIUS_API_KEY with your actual key
+SOLANA_RPC_URL=https://mainnet.helius-rpc.com/?api-key=661daee0-4ebb-4bbd-83be-45b132d734d0
+SOLANA_NETWORK=mainnet-beta
+
+# ============================================
+# TREASURY WALLET (CRITICAL - KEEP SECURE)
+# ============================================
+
+# Public address of your treasury wallet
+TREASURY_WALLET_PUBLIC=EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz
+
+# Private key in Base58 format (NEVER share this)
+# Generate with: solana-keygen new --outfile treasury.json
+# Convert to base58: cat treasury.json | base58
+# REPLACE THIS WITH YOUR ACTUAL PRIVATE KEY:
+TREASURY_WALLET_PRIVATE=YOUR_BASE58_PRIVATE_KEY_HERE
+
+# ============================================
+# TOKEN MINT ADDRESSES (Solana Mainnet)
+# ============================================
+
+# USDC (Circle's official Solana USDC)
+USDC_MINT=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+
+# TOLA Incentive Token
+TOLA_MINT=H6qNYafSrpCjckH8yVwiPmXYPd1nCNBP8uQMZkv5hkky
+
+# ============================================
+# NFT MINTING CONFIGURATION
+# ============================================
+
+# Bundlr/Arweave for metadata storage
+BUNDLR_ADDRESS=https://node1.bundlr.network
+
+# Platform royalty basis points (500 = 5%)
+NFT_ROYALTY_BPS=500
+
+# Platform treasury for royalties (same as TREASURY_WALLET_PUBLIC)
+PLATFORM_TREASURY_PUBKEY=EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz
+
+# ============================================
+# WORDPRESS INTEGRATION
+# ============================================
+
+WP_BASE_URL=https://vortexartec.com
+WP_AJAX_URL=https://vortexartec.com/wp-admin/admin-ajax.php
+WP_API_URL=https://vortexartec.com/wp-json
+
+# WooCommerce API credentials (generate in WooCommerce > Settings > Advanced > REST API)
+# REPLACE THESE WITH YOUR ACTUAL CREDENTIALS:
+WOO_CONSUMER_KEY=ck_your_consumer_key_here
+WOO_CONSUMER_SECRET=cs_your_consumer_secret_here
+
+# ============================================
+# SECURITY
+# ============================================
+
+# JWT secret for API authentication (generate a random 64-char string)
+JWT_SECRET=generate_a_long_random_string_here_at_least_64_characters_long
+
+# Webhook signature secret
+WEBHOOK_SECRET=another_random_secret_for_webhook_validation_32_chars
+
+# ============================================
+# RAILWAY DEPLOYMENT (if using Railway)
+# ============================================
+
+# Railway automatically sets these:
+# RAILWAY_ENVIRONMENT=production
+# RAILWAY_PUBLIC_DOMAIN=vortex-engine-production.up.railway.app
+
