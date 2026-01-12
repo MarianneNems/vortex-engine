@@ -9,12 +9,28 @@ Version: 4.1.1
 
 ## 1. WALLET CONFIGURATION
 
+### Platform Wallets (Each has a specific purpose)
+
+| Wallet | Address | Purpose | Share |
+|--------|---------|---------|-------|
+| **Platform Commission** | `6VPLAVjote7Bqo96CbJ5kfrotkdU9BF3ACeqsJtcvH8g` | 15% marketplace commissions from WCFM/WooCommerce | 15% |
+| **TOLA Incentive (User #52)** | `EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz` | Distributes TOLA rewards to users | Variable |
+| **Market Treasury** | `GYrv6jREdH2Rajd93AtxCghotazKXt6qwxNZtyL6ssp2` | Operations, liquidity, USDC disbursements | Operational |
+| **Contract Owner** | `DrdrYs68TFgkiNP2y6mQJD8c3Q8DbRPRyjsYvL5oCQ6u` | NFT smart contract royalties (immutable) | 5% |
+| **Wallet Management** | `3c6v1xUqkve8kLLyMQkVraqRGCWo4UmY7QLa185nR9Fx` | Fee on TOLA purchases via Stripe | 0.5% |
+| **Operator/Minter** | `FPiwDDtdU2G5y3pi7TX3eWAzZJoQ2mPecv42iBz9xUB3` | Creator + seller royalties | Up to 15% |
+
+### Token Addresses
+
+| Token | Mint Address |
+|-------|--------------|
+| **USDC** | `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` |
+| **TOLA** | `H6qNYafSrpCjckH8yVwiPmXYPd1nCNBP8uQMZkv5hkky` |
+
+### API Configuration
+
 | Setting | Value |
 |---------|-------|
-| **Platform Wallet (Solana)** | `EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz` |
-| **Owner User ID** | 52 |
-| **USDC Mint** | `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` |
-| **TOLA Mint** | `H6qNYafSrpCjckH8yVwiPmXYPd1nCNBP8uQMZkv5hkky` |
 | **Helius API Key** | `661daee0-4ebb-4bbd-83be-45b132d734d0` |
 | **Helius RPC** | `https://mainnet.helius-rpc.com/?api-key=661daee0-4ebb-4bbd-83be-45b132d734d0` |
 
@@ -477,13 +493,28 @@ PORT=3000
 NODE_ENV=production
 SOLANA_RPC_URL=https://mainnet.helius-rpc.com/?api-key=661daee0-4ebb-4bbd-83be-45b132d734d0
 SOLANA_NETWORK=mainnet-beta
-TREASURY_WALLET_PUBLIC=EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz
+
+# Wallet Structure (each wallet has a specific purpose)
+PLATFORM_COMMISSION_WALLET=6VPLAVjote7Bqo96CbJ5kfrotkdU9BF3ACeqsJtcvH8g
+TOLA_INCENTIVE_WALLET=EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz
+MARKET_TREASURY_WALLET=GYrv6jREdH2Rajd93AtxCghotazKXt6qwxNZtyL6ssp2
+CONTRACT_OWNER_WALLET=DrdrYs68TFgkiNP2y6mQJD8c3Q8DbRPRyjsYvL5oCQ6u
+WALLET_MANAGEMENT_WALLET=3c6v1xUqkve8kLLyMQkVraqRGCWo4UmY7QLa185nR9Fx
+OPERATOR_MINTER_WALLET=FPiwDDtdU2G5y3pi7TX3eWAzZJoQ2mPecv42iBz9xUB3
+
+# Treasury private key for automated distributions
 TREASURY_WALLET_PRIVATE=[Your Base58 Private Key]
+
+# Token addresses
 USDC_MINT=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
 TOLA_MINT=H6qNYafSrpCjckH8yVwiPmXYPd1nCNBP8uQMZkv5hkky
+
+# NFT Configuration
 BUNDLR_ADDRESS=https://node1.bundlr.network
 NFT_ROYALTY_BPS=500
-PLATFORM_TREASURY_PUBKEY=EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz
+PLATFORM_TREASURY_PUBKEY=GYrv6jREdH2Rajd93AtxCghotazKXt6qwxNZtyL6ssp2
+
+# WordPress Integration
 WP_BASE_URL=https://vortexartec.com
 WP_AJAX_URL=https://vortexartec.com/wp-admin/admin-ajax.php
 WP_API_URL=https://vortexartec.com/wp-json
