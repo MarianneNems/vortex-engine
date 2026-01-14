@@ -1,6 +1,6 @@
 {
   "name": "vortex-engine",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "description": "Vortex USDC Payment Engine - Solana blockchain backend for USDC payments, NFT minting, and TOLA incentives",
   "main": "dist/server.js",
   "scripts": {
