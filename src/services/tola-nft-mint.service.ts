@@ -8,7 +8,7 @@
  * @version 4.0.0
  */
 
-import { Metaplex, keypairIdentity, bundlrStorage } from '@metaplex-foundation/js';
+import { Metaplex, keypairIdentity } from '@metaplex-foundation/js';
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import bs58 from 'bs58';
 
@@ -62,14 +62,9 @@ export class TOLANFTMintService {
             throw new Error('Invalid treasury wallet private key');
         }
         
-        // Initialize Metaplex
+        // Initialize Metaplex (without bundlr storage - uses default)
         this.metaplex = Metaplex.make(this.connection)
-            .use(keypairIdentity(this.treasuryKeypair))
-            .use(bundlrStorage({
-                address: 'https://node1.bundlr.network',
-                providerUrl: rpcUrl,
-                timeout: 60000
-            }));
+            .use(keypairIdentity(this.treasuryKeypair));
         
         console.log('[TOLA NFT] Service initialized - Real Metaplex minting ready');
     }
@@ -195,7 +190,7 @@ export class TOLANFTMintService {
             const to = new PublicKey(toAddress);
             
             const { response } = await this.metaplex.nfts().transfer({
-                nftOrSft: { address: mint },
+                nftOrSft: { address: mint, tokenStandard: 0 } as any,
                 toOwner: to
             });
             

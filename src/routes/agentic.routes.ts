@@ -197,7 +197,7 @@ router.post('/nvidia/chat', async (req: Request, res: Response) => {
             throw new Error(`NVIDIA API error: ${error}`);
         }
         
-        const data = await response.json();
+        const data: any = await response.json();
         
         res.json({
             success: true,
@@ -251,7 +251,7 @@ router.post('/nvidia/embed', async (req: Request, res: Response) => {
             throw new Error(`NVIDIA API error: ${error}`);
         }
         
-        const data = await response.json();
+        const data: any = await response.json();
         
         res.json({
             success: true,
