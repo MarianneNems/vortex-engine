@@ -80,7 +80,7 @@ app.get('/health', (req, res) => {
         success: true,
         status: 'online',
         version: '4.0.0',
-        build: '2026-01-14-v2',
+        build: '2026-01-14-v3-force-routes',
         timestamp: new Date().toISOString(),
         routes_loaded: {
             balance_sync: true,
