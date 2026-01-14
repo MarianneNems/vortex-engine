@@ -79,8 +79,8 @@ app.get('/health', (req, res) => {
     res.json({
         success: true,
         status: 'online',
-        version: '4.0.0',
-        build: '2026-01-14-v4-ts-fixed',
+        version: '4.0.1',
+        build: '2026-01-14-v5-cache-bust',
         timestamp: new Date().toISOString(),
         routes_loaded: {
             balance_sync: true,
@@ -828,7 +828,7 @@ app.post('/wc/webhooks/style-guided-generation', (req, res) => {
 
 app.listen(PORT, () => {
     console.log(`\n========================================`);
-    console.log(`[VORTEX ENGINE] v4.0.0`);
+    console.log(`[VORTEX ENGINE] v4.0.1`);
     console.log(`[VORTEX ENGINE] USDC-First + AI Evolution`);
     console.log(`========================================\n`);
     console.log(`Server: http://localhost:${PORT}`);
