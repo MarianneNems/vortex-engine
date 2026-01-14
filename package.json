@@ -8,7 +8,7 @@
     "build": "npx tsc",
     "start": "node dist/server.js",
     "test": "jest",
-    "postinstall": "npx tsc || true"
+    "postinstall": "./node_modules/.bin/tsc || true"
   },
   "engines": {
     "node": ">=18.0.0"
