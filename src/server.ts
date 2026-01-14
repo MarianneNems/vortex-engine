@@ -1,11 +1,12 @@
 /**
  * Vortex Engine - USDC Payment System + TOLA Incentives
- * Version 4.1.1 - USDC-first architecture with hidden TOLA rewards
+ * Version 4.0.0 - USDC-first architecture with hidden TOLA rewards
  * 
  * PRIMARY: USDC stablecoin payments (user-facing)
  * SECONDARY: TOLA incentive distribution (backend only)
  * 
- * v4.1.1 - Added assets routes for daily NFT bundles
+ * Added assets routes for daily NFT bundles
+ * WordPress balance sync webhooks for Stripe/spending balance
  */
 
 import express from 'express';
@@ -47,7 +48,7 @@ app.use('/api/swap', swapRoutes);
 // TOLA Masterpiece routes (v4.0.0)
 app.use('/api/tola-masterpiece', tolaMasterpieceRoutes);
 
-// Evolution System routes (v4.1.0) - Test-time scaling, genetic evolution, open models
+// Evolution System routes (v4.0.0) - Test-time scaling, genetic evolution, open models
 app.use('/api/evolution', evolutionRoutes);
 
 // Agentic AI routes (v4.0.0) - Intelligent routing, NVIDIA integration, unified pipeline
@@ -65,7 +66,7 @@ app.use('/api/kv-cache', kvCacheRoutes);
 // AI Scaling routes (v4.0.0) - Scale up/out, heartbeat sync, distributed memory
 app.use('/api/scaling', scalingRoutes);
 
-// Assets routes (v4.0.2) - Daily platform assets, product NFT bundles
+// Assets routes (v4.0.0) - Daily platform assets, product NFT bundles
 app.use('/api/assets', assetsRoutes);
 
 // Initialize services
@@ -78,7 +79,7 @@ app.get('/health', (req, res) => {
     res.json({
         success: true,
         status: 'online',
-        version: '4.1.1',
+        version: '4.0.0',
         timestamp: new Date().toISOString()
     });
 });
@@ -246,7 +247,7 @@ app.post('/wc/webhooks/usage-payment', (req, res) => {
 });
 
 // ============================================
-// WORDPRESS BALANCE SYNC WEBHOOKS (v4.1.2)
+// WORDPRESS BALANCE SYNC WEBHOOKS (v4.0.0)
 // Track WordPress platform balance changes
 // WordPress balance = Stripe purchases = spending balance
 // Blockchain balance = on-chain USDC (separate)
@@ -799,7 +800,7 @@ app.post('/wc/webhooks/style-guided-generation', (req, res) => {
 
 app.listen(PORT, () => {
     console.log(`\n========================================`);
-    console.log(`[VORTEX ENGINE] v4.1.0`);
+    console.log(`[VORTEX ENGINE] v4.0.0`);
     console.log(`[VORTEX ENGINE] USDC-First + AI Evolution`);
     console.log(`========================================\n`);
     console.log(`Server: http://localhost:${PORT}`);
@@ -843,7 +844,7 @@ app.listen(PORT, () => {
     console.log(`  POST /api/tola/transfer-nft - Transfer NFT to wallet`);
     console.log(`  GET  /api/tola/nft/:mint - Get NFT details\n`);
     
-    console.log(`AI Evolution System (v4.1.0)`);
+    console.log(`AI Evolution System (v4.0.0)`);
     console.log(`  Test-Time Scaling:`);
     console.log(`    POST /api/evolution/scaling/start - Start scaling session`);
     console.log(`    POST /api/evolution/scaling/complete - Complete session`);
