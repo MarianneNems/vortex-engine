@@ -245,6 +245,68 @@ app.post('/wc/webhooks/usage-payment', (req, res) => {
     });
 });
 
+// ============================================
+// WORDPRESS BALANCE SYNC WEBHOOKS (v4.1.2)
+// Track WordPress platform balance changes
+// WordPress balance = Stripe purchases = spending balance
+// Blockchain balance = on-chain USDC (separate)
+// ============================================
+
+// Stripe purchase completed - USDC added to WordPress balance
+app.post('/wc/webhooks/stripe-purchase-completed', (req, res) => {
+    console.log('[WEBHOOK] Stripe purchase completed:', {
+        user_id: req.body?.user_id,
+        amount_usdc: req.body?.amount_usdc,
+        stripe_payment_intent: req.body?.stripe_payment_intent,
+        new_balance: req.body?.new_balance,
+        timestamp: req.body?.timestamp
+    });
+    
+    res.json({ 
+        success: true, 
+        message: 'Stripe purchase logged',
+        balance_type: 'wordpress_spending',
+        timestamp: new Date().toISOString()
+    });
+});
+
+// WordPress balance spent - AI service usage
+app.post('/wc/webhooks/balance-spent', (req, res) => {
+    console.log('[WEBHOOK] Balance spent:', {
+        user_id: req.body?.user_id,
+        amount_usdc: req.body?.amount_usdc,
+        service: req.body?.service,
+        remaining_balance: req.body?.remaining_balance,
+        timestamp: req.body?.timestamp
+    });
+    
+    res.json({ 
+        success: true, 
+        message: 'Balance spend logged',
+        balance_type: 'wordpress_spending',
+        timestamp: new Date().toISOString()
+    });
+});
+
+// WordPress balance sync request - get confirmed balance
+app.post('/wc/webhooks/balance-sync', (req, res) => {
+    console.log('[WEBHOOK] Balance sync request:', {
+        user_id: req.body?.user_id,
+        wordpress_balance: req.body?.wordpress_balance,
+        wallet_address: req.body?.wallet_address
+    });
+    
+    // WordPress balance is the source of truth for spending
+    // This webhook just logs sync events for auditing
+    res.json({ 
+        success: true, 
+        message: 'Balance sync acknowledged',
+        source_of_truth: 'wordpress',
+        note: 'WordPress balance from Stripe is the spending balance. Blockchain balance is separate on-chain USDC.',
+        timestamp: new Date().toISOString()
+    });
+});
+
 // USDC Transfer endpoint
 app.post('/api/usdc/transfer', async (req, res) => {
     try {
