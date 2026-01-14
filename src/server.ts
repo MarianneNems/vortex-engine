@@ -80,8 +80,36 @@ app.get('/health', (req, res) => {
         success: true,
         status: 'online',
         version: '4.0.0',
-        timestamp: new Date().toISOString()
+        build: '2026-01-14-v2',
+        timestamp: new Date().toISOString(),
+        routes_loaded: {
+            balance_sync: true,
+            spending: true,
+            swap: true,
+            evolution: true,
+            agentic: true,
+            cosmos: true,
+            assets: true
+        }
     });
+});
+
+// Debug: List all registered routes
+app.get('/debug/routes', (req, res) => {
+    const routes: string[] = [];
+    app._router.stack.forEach((middleware: any) => {
+        if (middleware.route) {
+            routes.push(`${Object.keys(middleware.route.methods).join(',').toUpperCase()} ${middleware.route.path}`);
+        } else if (middleware.name === 'router') {
+            middleware.handle.stack.forEach((handler: any) => {
+                if (handler.route) {
+                    const path = middleware.regexp.source.replace('\\/?(?=\\/|$)', '').replace(/\\\//g, '/').replace('^', '');
+                    routes.push(`${Object.keys(handler.route.methods).join(',').toUpperCase()} ${path}${handler.route.path}`);
+                }
+            });
+        }
+    });
+    res.json({ success: true, route_count: routes.length, routes: routes.slice(0, 50) });
 });
 
 // TOLA metrics endpoint
