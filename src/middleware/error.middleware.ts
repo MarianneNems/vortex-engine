@@ -1,12 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
 
-interface AppError extends Error {
+interface IAppError extends Error {
     status?: number;
     statusCode?: number;
     isOperational?: boolean;
 }
 
-export function errorHandler(err: AppError, req: Request, res: Response, next: NextFunction) {
+export function errorHandler(err: IAppError, req: Request, res: Response, next: NextFunction) {
     // Log error details
     console.error('[ERROR]', {
         message: err.message,
