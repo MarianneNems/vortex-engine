@@ -99,7 +99,7 @@ app.get('/health', (req, res) => {
         success: true,
         status: 'online',
         version: '4.0.0',
-        build: '2026-01-15-v9-CONSOLIDATED',
+        build: '2026-01-15-v4.0.0',
         timestamp: new Date().toISOString(),
         routes_loaded: routeStatus,
         services: {
