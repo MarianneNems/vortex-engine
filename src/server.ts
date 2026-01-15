@@ -5,28 +5,13 @@
  * PRIMARY: USDC stablecoin payments (user-facing)
  * SECONDARY: TOLA incentive distribution (backend only)
  * 
- * Added assets routes for daily NFT bundles
- * WordPress balance sync webhooks for Stripe/spending balance
+ * @version 4.0.0
  */
 
 import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import dotenv from 'dotenv';
-import { USDCTransferService, USDCTransferRequest } from './services/usdc-transfer.service';
-import { TOLATransferService, TOLATransferRequest } from './services/tola-transfer.service';
-import { TOLANFTMintService, TOLANFTMintRequest } from './services/tola-nft-mint.service';
-import balanceSyncRoutes from './routes/balance-sync.routes';
-import spendingRoutes from './routes/spending.routes';
-import swapRoutes from './routes/swap.routes';
-import tolaMasterpieceRoutes from './routes/tola-masterpiece.routes';
-import evolutionRoutes from './routes/evolution.routes';
-import agenticRoutes from './routes/agentic.routes';
-import cosmosRoutes from './routes/cosmos.routes';
-import royaltyRoutes from './routes/royalty.routes';
-import kvCacheRoutes from './routes/kv-cache.routes';
-import scalingRoutes from './routes/scaling.routes';
-import { assetsRoutes } from './routes/assets.routes';
 
 dotenv.config();
 
@@ -36,60 +21,91 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(bodyParser.json());
 
-// Balance sync routes (v4.0.0)
-app.use('/api', balanceSyncRoutes);
+// Track which routes loaded successfully
+const routeStatus: Record<string, boolean> = {};
 
-// USDC Spending routes (v4.0.0)
-app.use('/api/spending', spendingRoutes);
+// Safe route loader with error handling
+function safeLoadRoute(name: string, path: string, loader: () => any): any {
+    try {
+        const route = loader();
+        routeStatus[name] = true;
+        console.log(`[ROUTES] Loaded: ${name} at ${path}`);
+        return route;
+    } catch (error: any) {
+        routeStatus[name] = false;
+        console.error(`[ROUTES] FAILED to load ${name}:`, error.message);
+        return null;
+    }
+}
 
-// NFT Swap routes (v4.0.0)
-app.use('/api/swap', swapRoutes);
+// Load routes with error handling
+const balanceSyncRoutes = safeLoadRoute('balance-sync', '/api', () => require('./routes/balance-sync.routes').default);
+const spendingRoutes = safeLoadRoute('spending', '/api/spending', () => require('./routes/spending.routes').default);
+const swapRoutes = safeLoadRoute('swap', '/api/swap', () => require('./routes/swap.routes').default);
+const tolaMasterpieceRoutes = safeLoadRoute('tola-masterpiece', '/api/tola-masterpiece', () => require('./routes/tola-masterpiece.routes').default);
+const evolutionRoutes = safeLoadRoute('evolution', '/api/evolution', () => require('./routes/evolution.routes').default);
+const agenticRoutes = safeLoadRoute('agentic', '/api/agentic', () => require('./routes/agentic.routes').default);
+const cosmosRoutes = safeLoadRoute('cosmos', '/api/cosmos', () => require('./routes/cosmos.routes').default);
+const royaltyRoutes = safeLoadRoute('royalty', '/api/royalty', () => require('./routes/royalty.routes').default);
+const kvCacheRoutes = safeLoadRoute('kv-cache', '/api/kv-cache', () => require('./routes/kv-cache.routes').default);
+const scalingRoutes = safeLoadRoute('scaling', '/api/scaling', () => require('./routes/scaling.routes').default);
+const assetsRoutes = safeLoadRoute('assets', '/api/assets', () => require('./routes/assets.routes').assetsRoutes);
 
-// TOLA Masterpiece routes (v4.0.0)
-app.use('/api/tola-masterpiece', tolaMasterpieceRoutes);
+// Mount routes (only if loaded successfully)
+if (balanceSyncRoutes) app.use('/api', balanceSyncRoutes);
+if (spendingRoutes) app.use('/api/spending', spendingRoutes);
+if (swapRoutes) app.use('/api/swap', swapRoutes);
+if (tolaMasterpieceRoutes) app.use('/api/tola-masterpiece', tolaMasterpieceRoutes);
+if (evolutionRoutes) app.use('/api/evolution', evolutionRoutes);
+if (agenticRoutes) app.use('/api/agentic', agenticRoutes);
+if (cosmosRoutes) app.use('/api/cosmos', cosmosRoutes);
+if (royaltyRoutes) app.use('/api/royalty', royaltyRoutes);
+if (kvCacheRoutes) app.use('/api/kv-cache', kvCacheRoutes);
+if (scalingRoutes) app.use('/api/scaling', scalingRoutes);
+if (assetsRoutes) app.use('/api/assets', assetsRoutes);
 
-// Evolution System routes (v4.0.0) - Test-time scaling, genetic evolution, open models
-app.use('/api/evolution', evolutionRoutes);
+// Initialize services with error handling
+let usdcService: any = null;
+let tolaService: any = null;
+let nftService: any = null;
 
-// Agentic AI routes (v4.0.0) - Intelligent routing, NVIDIA integration, unified pipeline
-app.use('/api/agentic', agenticRoutes);
+try {
+    const { USDCTransferService } = require('./services/usdc-transfer.service');
+    usdcService = new USDCTransferService();
+    console.log('[SERVICES] USDCTransferService initialized');
+} catch (e: any) {
+    console.error('[SERVICES] USDCTransferService failed:', e.message);
+}
 
-// Cosmos AI routes (v4.0.0) - Physical robot embodiment, SECRET SAUCE
-app.use('/api/cosmos', cosmosRoutes);
+try {
+    const { TOLATransferService } = require('./services/tola-transfer.service');
+    tolaService = new TOLATransferService();
+    console.log('[SERVICES] TOLATransferService initialized');
+} catch (e: any) {
+    console.error('[SERVICES] TOLATransferService failed:', e.message);
+}
 
-// Royalty Enforcement routes (v4.0.0) - Perpetual 5% royalty on data exports
-app.use('/api/royalty', royaltyRoutes);
+try {
+    const { TOLANFTMintService } = require('./services/tola-nft-mint.service');
+    nftService = new TOLANFTMintService();
+    console.log('[SERVICES] TOLANFTMintService initialized');
+} catch (e: any) {
+    console.error('[SERVICES] TOLANFTMintService failed:', e.message);
+}
 
-// KV Cache routes (v4.0.0) - Fast token generation with cached key-values
-app.use('/api/kv-cache', kvCacheRoutes);
-
-// AI Scaling routes (v4.0.0) - Scale up/out, heartbeat sync, distributed memory
-app.use('/api/scaling', scalingRoutes);
-
-// Assets routes (v4.0.0) - Daily platform assets, product NFT bundles
-app.use('/api/assets', assetsRoutes);
-
-// Initialize services
-const usdcService = new USDCTransferService();
-const tolaService = new TOLATransferService();
-const nftService = new TOLANFTMintService();
-
-// Health check
+// Health check - v4.0.0
 app.get('/health', (req, res) => {
     res.json({
         success: true,
         status: 'online',
-        version: '4.0.1',
-        build: '2026-01-14-v5-cache-bust',
+        version: '4.0.0',
+        build: '2026-01-14-v6-debug',
         timestamp: new Date().toISOString(),
-        routes_loaded: {
-            balance_sync: true,
-            spending: true,
-            swap: true,
-            evolution: true,
-            agentic: true,
-            cosmos: true,
-            assets: true
+        routes_loaded: routeStatus,
+        services: {
+            usdc: !!usdcService,
+            tola: !!tolaService,
+            nft: !!nftService
         }
     });
 });
@@ -109,7 +125,7 @@ app.get('/debug/routes', (req, res) => {
             });
         }
     });
-    res.json({ success: true, route_count: routes.length, routes: routes.slice(0, 50) });
+    res.json({ success: true, route_count: routes.length, routes: routes.slice(0, 100) });
 });
 
 // TOLA metrics endpoint
@@ -118,7 +134,7 @@ app.get('/tola/snapshot', async (req, res) => {
         success: true,
         data: {
             price: 1.00,
-            message: 'Vortex Engine running'
+            message: 'Vortex Engine v4.0.0 running'
         }
     });
 });
@@ -155,25 +171,9 @@ app.post('/wc/webhooks/wallet-connected', (req, res) => {
     console.log('[WEBHOOK] Wallet connected:', {
         user_id: req.body?.user?.id,
         wallet_address: req.body?.wallet?.address,
-        blockchain: req.body?.wallet?.blockchain,
-        user_type: req.body?.user?.user_type,
-        page: req.body?.page
+        blockchain: req.body?.wallet?.blockchain
     });
-    
-    // Store wallet connection event
-    const event = {
-        type: 'wallet_connected',
-        timestamp: new Date().toISOString(),
-        user_id: req.body?.user?.id,
-        wallet_address: req.body?.wallet?.address,
-        tola_balance: req.body?.tola_balance
-    };
-    
-    res.json({ 
-        success: true, 
-        message: 'Wallet connection webhook received',
-        event: event
-    });
+    res.json({ success: true, message: 'Wallet connection webhook received' });
 });
 
 // TOLA transaction webhook
@@ -181,770 +181,159 @@ app.post('/wc/webhooks/tola-transaction', (req, res) => {
     console.log('[WEBHOOK] TOLA transaction:', {
         user_id: req.body?.user?.id,
         type: req.body?.transaction?.type,
-        amount: req.body?.transaction?.amount,
-        new_balance: req.body?.balance?.current,
-        page: req.body?.page
+        amount: req.body?.transaction?.amount
     });
-    
-    const event = {
-        type: 'tola_transaction',
-        timestamp: new Date().toISOString(),
-        user_id: req.body?.user?.id,
-        transaction_type: req.body?.transaction?.type,
-        amount: req.body?.transaction?.amount,
-        balance: req.body?.balance?.current
-    };
-    
-    res.json({ 
-        success: true, 
-        message: 'TOLA transaction webhook received',
-        event: event
-    });
+    res.json({ success: true, message: 'TOLA transaction webhook received' });
 });
 
 // Subscription activation webhook
 app.post('/wc/webhooks/subscription-activated', (req, res) => {
     console.log('[WEBHOOK] Subscription activated:', {
         user_id: req.body?.user?.id,
-        tier: req.body?.subscription?.tier,
-        wcfm_id: req.body?.subscription?.wcfm_membership_id,
-        user_type: req.body?.user?.user_type,
-        page: req.body?.page
+        tier: req.body?.subscription?.tier
     });
-    
-    const event = {
-        type: 'subscription_activated',
-        timestamp: new Date().toISOString(),
-        user_id: req.body?.user?.id,
-        subscription_tier: req.body?.subscription?.tier,
-        wcfm_membership_id: req.body?.subscription?.wcfm_membership_id,
-        tola_cost: req.body?.subscription?.tola_cost
-    };
-    
-    res.json({ 
-        success: true, 
-        message: 'Subscription activation webhook received',
-        event: event
-    });
+    res.json({ success: true, message: 'Subscription activation webhook received' });
 });
 
-// Collector subscription webhook (special handling for WCFM ID 9005)
-app.post('/wc/webhooks/collector-subscription', (req, res) => {
-    console.log('[WEBHOOK] Collector subscription activated:', {
-        user_id: req.body?.user_id,
-        wcfm_id: req.body?.wcfm_membership_id,
-        interface: req.body?.interface_file,
-        access_level: req.body?.access_level
-    });
-    
-    res.json({ 
-        success: true, 
-        message: 'Collector subscription webhook received',
-        interface: 'index-collector.html'
-    });
-});
-
-// Usage payment webhook (AI generation billing)
+// Usage payment webhook
 app.post('/wc/webhooks/usage-payment', (req, res) => {
     console.log('[WEBHOOK] Usage payment:', {
         user_id: req.body?.user?.id,
         tokens_used: req.body?.usage?.tokens_used,
-        cost_tola: req.body?.usage?.cost_tola,
-        hardware: req.body?.usage?.hardware,
-        billing_type: req.body?.billing?.billing_type,
-        multiplier: req.body?.billing?.multiplier,
-        new_balance: req.body?.balance?.current
+        cost: req.body?.usage?.cost_tola
     });
-    
-    const event = {
-        type: 'usage_payment',
-        timestamp: new Date().toISOString(),
-        user_id: req.body?.user?.id,
-        tokens_used: req.body?.usage?.tokens_used,
-        cost: req.body?.usage?.cost_tola,
-        billing_multiplier: req.body?.billing?.multiplier,
-        balance: req.body?.balance?.current
-    };
-    
-    res.json({ 
-        success: true, 
-        message: 'Usage payment webhook received',
-        event: event,
-        billing_confirmed: true
-    });
-});
-
-// ============================================
-// WORDPRESS BALANCE SYNC WEBHOOKS (v4.0.0)
-// Track WordPress platform balance changes
-// WordPress balance = Stripe purchases = spending balance
-// Blockchain balance = on-chain USDC (separate)
-// ============================================
-
-// Stripe purchase completed - USDC added to WordPress balance
-app.post('/wc/webhooks/stripe-purchase-completed', (req, res) => {
-    console.log('[WEBHOOK] Stripe purchase completed:', {
-        user_id: req.body?.user_id,
-        amount_usdc: req.body?.amount_usdc,
-        stripe_payment_intent: req.body?.stripe_payment_intent,
-        new_balance: req.body?.new_balance,
-        timestamp: req.body?.timestamp
-    });
-    
-    res.json({ 
-        success: true, 
-        message: 'Stripe purchase logged',
-        balance_type: 'wordpress_spending',
-        timestamp: new Date().toISOString()
-    });
-});
-
-// WordPress balance spent - AI service usage
-app.post('/wc/webhooks/balance-spent', (req, res) => {
-    console.log('[WEBHOOK] Balance spent:', {
-        user_id: req.body?.user_id,
-        amount_usdc: req.body?.amount_usdc,
-        service: req.body?.service,
-        remaining_balance: req.body?.remaining_balance,
-        timestamp: req.body?.timestamp
-    });
-    
-    res.json({ 
-        success: true, 
-        message: 'Balance spend logged',
-        balance_type: 'wordpress_spending',
-        timestamp: new Date().toISOString()
-    });
-});
-
-// WordPress balance sync request - get confirmed balance
-app.post('/wc/webhooks/balance-sync', (req, res) => {
-    console.log('[WEBHOOK] Balance sync request:', {
-        user_id: req.body?.user_id,
-        wordpress_balance: req.body?.wordpress_balance,
-        wallet_address: req.body?.wallet_address
-    });
-    
-    // WordPress balance is the source of truth for spending
-    // This webhook just logs sync events for auditing
-    res.json({ 
-        success: true, 
-        message: 'Balance sync acknowledged',
-        source_of_truth: 'wordpress',
-        note: 'WordPress balance from Stripe is the spending balance. Blockchain balance is separate on-chain USDC.',
-        timestamp: new Date().toISOString()
-    });
+    res.json({ success: true, message: 'Usage payment webhook received' });
 });
 
 // USDC Transfer endpoint
 app.post('/api/usdc/transfer', async (req, res) => {
     try {
-        const body = req.body as USDCTransferRequest;
-        
+        if (!usdcService) {
+            return res.status(503).json({ success: false, error: 'USDC service not available' });
+        }
+        const body = req.body;
         if (!body.user_id || !body.wallet_address || !body.amount_usdc) {
-            return res.status(400).json({
-                success: false,
-                error: 'Missing required fields'
-            });
+            return res.status(400).json({ success: false, error: 'Missing required fields' });
         }
-        
-        console.log('[USDC TRANSFER] Request:', {
-            user_id: body.user_id,
-            wallet: body.wallet_address,
-            amount: body.amount_usdc
-        });
-        
         const result = await usdcService.transferUSDC(body);
-        
-        if (result.success) {
-            console.log('[USDC TRANSFER] Success:', result.tx_signature);
-            return res.status(200).json(result);
-        } else {
-            console.error('[USDC TRANSFER] Failed:', result.error);
-            return res.status(500).json(result);
-        }
-        
+        return res.status(result.success ? 200 : 500).json(result);
     } catch (error: any) {
-        console.error('[USDC TRANSFER] Error:', error);
-        return res.status(500).json({
-            success: false,
-            error: error.message || 'Internal server error'
-        });
+        return res.status(500).json({ success: false, error: error.message });
     }
 });
 
 // USDC Balance endpoint
 app.get('/api/usdc/balance/:wallet', async (req, res) => {
     try {
-        const { wallet } = req.params;
-        
-        if (!wallet) {
-            return res.status(400).json({
-                success: false,
-                error: 'Wallet address required'
-            });
+        if (!usdcService) {
+            return res.status(503).json({ success: false, error: 'USDC service not available' });
         }
-        
-        const balance = await usdcService.getBalance(wallet);
-        
-        return res.status(200).json({
-            success: true,
-            wallet,
-            balance
-        });
-        
+        const balance = await usdcService.getBalance(req.params.wallet);
+        return res.status(200).json({ success: true, wallet: req.params.wallet, balance });
     } catch (error: any) {
-        console.error('[USDC BALANCE] Error:', error);
-        return res.status(500).json({
-            success: false,
-            error: error.message || 'Internal server error'
-        });
-    }
-});
-
-// USDC Transaction verification endpoint
-app.get('/api/usdc/verify/:signature', async (req, res) => {
-    try {
-        const { signature } = req.params;
-        
-        if (!signature) {
-            return res.status(400).json({
-                success: false,
-                error: 'Transaction signature required'
-            });
-        }
-        
-        const verified = await usdcService.verifyTransaction(signature);
-        
-        return res.status(200).json({
-            success: true,
-            signature,
-            verified
-        });
-        
-    } catch (error: any) {
-        console.error('[USDC VERIFY] Error:', error);
-        return res.status(500).json({
-            success: false,
-            error: error.message || 'Internal server error'
-        });
+        return res.status(500).json({ success: false, error: error.message });
     }
 });
 
 // TOLA Transfer endpoint
 app.post('/api/tola/transfer', async (req, res) => {
     try {
-        const body = req.body as TOLATransferRequest;
-        
+        if (!tolaService) {
+            return res.status(503).json({ success: false, error: 'TOLA service not available' });
+        }
+        const body = req.body;
         if (!body.user_id || !body.wallet_address || !body.amount_tola) {
-            return res.status(400).json({
-                success: false,
-                error: 'Missing required fields'
-            });
+            return res.status(400).json({ success: false, error: 'Missing required fields' });
         }
-        
-        console.log('[TOLA TRANSFER] Request:', {
-            user_id: body.user_id,
-            wallet: body.wallet_address,
-            amount: body.amount_tola
-        });
-        
         const result = await tolaService.transferTOLA(body);
-        
-        if (result.success) {
-            console.log('[TOLA TRANSFER] Success:', result.signature);
-            return res.status(200).json(result);
-        } else {
-            console.error('[TOLA TRANSFER] Failed:', result.error);
-            return res.status(500).json(result);
-        }
-        
+        return res.status(result.success ? 200 : 500).json(result);
     } catch (error: any) {
-        console.error('[TOLA TRANSFER] Error:', error);
-        return res.status(500).json({
-            success: false,
-            error: error.message || 'Internal server error'
-        });
+        return res.status(500).json({ success: false, error: error.message });
     }
 });
 
 // TOLA Balance endpoint
 app.get('/api/tola/balance/:wallet', async (req, res) => {
     try {
-        const { wallet } = req.params;
-        
-        if (!wallet) {
-            return res.status(400).json({
-                success: false,
-                error: 'Wallet address required'
-            });
+        if (!tolaService) {
+            return res.status(503).json({ success: false, error: 'TOLA service not available' });
         }
-        
-        const balance = await tolaService.getBalance(wallet);
-        
-        return res.status(200).json({
-            success: true,
-            wallet,
-            balance
-        });
-        
+        const balance = await tolaService.getBalance(req.params.wallet);
+        return res.status(200).json({ success: true, wallet: req.params.wallet, balance });
     } catch (error: any) {
-        console.error('[TOLA BALANCE] Error:', error);
-        return res.status(500).json({
-            success: false,
-            error: error.message || 'Internal server error'
-        });
+        return res.status(500).json({ success: false, error: error.message });
     }
 });
 
-// TOLA Transaction verification endpoint
-app.get('/api/tola/verify/:signature', async (req, res) => {
-    try {
-        const { signature } = req.params;
-        
-        if (!signature) {
-            return res.status(400).json({
-                success: false,
-                error: 'Transaction signature required'
-            });
-        }
-        
-        const verified = await tolaService.verifyTransaction(signature);
-        
-        return res.status(200).json({
-            success: true,
-            signature,
-            verified
-        });
-        
-    } catch (error: any) {
-        console.error('[TOLA VERIFY] Error:', error);
-        return res.status(500).json({
-            success: false,
-            error: error.message || 'Internal server error'
-        });
-    }
-});
-
-// ============================================
-// NFT MINTING ENDPOINTS (v4.0.0)
-// MUST be defined BEFORE app.listen()
-// ============================================
-
-// TOLA NFT Minting endpoint - Mints NFT and transfers to user wallet
+// NFT Minting endpoint
 app.post('/api/tola/mint-nft', async (req, res) => {
     try {
-        const body = req.body as TOLANFTMintRequest & { recipient_wallet?: string };
-        
+        if (!nftService) {
+            return res.status(503).json({ success: false, error: 'NFT service not available' });
+        }
+        const body = req.body;
         if (!body.name || !body.uri) {
-            return res.status(400).json({
-                success: false,
-                error: 'Missing required fields: name and uri'
-            });
+            return res.status(400).json({ success: false, error: 'Missing required fields: name and uri' });
         }
-        
-        console.log('[TOLA NFT] Minting request:', {
-            name: body.name,
-            symbol: body.symbol,
-            recipient: body.recipient_wallet || 'treasury',
-            creators: body.creators?.length || 0
-        });
-        
-        // Step 1: Mint NFT to treasury
-        const mintResult = await nftService.mintNFT(body);
-        
-        if (!mintResult.success) {
-            console.error('[TOLA NFT] Mint failed:', mintResult.error);
-            return res.status(500).json(mintResult);
-        }
-        
-        console.log('[TOLA NFT] Minted to treasury:', mintResult.mint_address);
-        
-        // Step 2: Transfer NFT to user's wallet if recipient provided
-        if (body.recipient_wallet && mintResult.mint_address) {
-            try {
-                console.log('[TOLA NFT] Transferring to user wallet:', body.recipient_wallet);
-                const transferResult = await nftService.transferNFT(
-                    mintResult.mint_address,
-                    body.recipient_wallet
-                );
-                
-                if (transferResult.success) {
-                    console.log('[TOLA NFT] Transfer successful:', transferResult.signature);
-                    return res.status(200).json({
-                        ...mintResult,
-                        owner: body.recipient_wallet,
-                        transfer_signature: transferResult.signature,
-                        transfer_explorer_url: transferResult.explorer_url
-                    });
-                } else {
-                    console.error('[TOLA NFT] Transfer failed:', transferResult.error);
-                    // NFT minted but transfer failed - return partial success
-                    return res.status(200).json({
-                        ...mintResult,
-                        owner: 'treasury',
-                        transfer_status: 'pending',
-                        transfer_error: transferResult.error
-                    });
-                }
-            } catch (transferError: any) {
-                console.error('[TOLA NFT] Transfer exception:', transferError);
-                return res.status(200).json({
-                    ...mintResult,
-                    owner: 'treasury',
-                    transfer_status: 'failed',
-                    transfer_error: transferError.message
-                });
-            }
-        }
-        
-        // No recipient specified - NFT stays in treasury
-        console.log('[TOLA NFT] Minted (no transfer):', mintResult.mint_address);
-        return res.status(200).json({
-            ...mintResult,
-            owner: 'treasury'
-        });
-        
+        const result = await nftService.mintNFT(body);
+        return res.status(result.success ? 200 : 500).json(result);
     } catch (error: any) {
-        console.error('[TOLA NFT] Error:', error);
-        return res.status(500).json({
-            success: false,
-            error: error.message || 'Internal server error'
-        });
+        return res.status(500).json({ success: false, error: error.message });
     }
 });
 
-// TOLA Metadata Upload endpoint - Uploads to Arweave via Bundlr
-app.post('/api/tola/upload-metadata', async (req, res) => {
-    try {
-        const { name, symbol, description, image, attributes } = req.body;
-        
-        if (!name || !image) {
-            return res.status(400).json({
-                success: false,
-                error: 'Missing required fields: name and image'
-            });
-        }
-        
-        const metadata = {
-            name,
-            symbol: symbol || 'VRTX',
-            description: description || '',
-            image,
-            attributes: attributes || [],
-            properties: {
-                files: [{ uri: image, type: 'image/png' }],
-                category: 'image'
-            }
-        };
-        
-        console.log('[TOLA NFT] Uploading metadata to Arweave:', name);
-        const uri = await nftService.uploadMetadata(metadata);
-        
-        console.log('[TOLA NFT] Metadata uploaded:', uri);
-        return res.status(200).json({
-            success: true,
-            uri
-        });
-        
-    } catch (error: any) {
-        console.error('[TOLA NFT] Metadata upload error:', error);
-        return res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-// NFT Transfer endpoint - Transfer existing NFT to user
+// NFT Transfer endpoint
 app.post('/api/tola/transfer-nft', async (req, res) => {
     try {
+        if (!nftService) {
+            return res.status(503).json({ success: false, error: 'NFT service not available' });
+        }
         const { mint_address, recipient_wallet } = req.body;
-        
         if (!mint_address || !recipient_wallet) {
-            return res.status(400).json({
-                success: false,
-                error: 'Missing required fields: mint_address and recipient_wallet'
-            });
+            return res.status(400).json({ success: false, error: 'Missing required fields' });
         }
-        
-        console.log('[TOLA NFT] Transfer request:', { mint_address, recipient_wallet });
-        
         const result = await nftService.transferNFT(mint_address, recipient_wallet);
-        
-        if (result.success) {
-            console.log('[TOLA NFT] Transfer successful:', result.signature);
-            return res.status(200).json(result);
-        } else {
-            console.error('[TOLA NFT] Transfer failed:', result.error);
-            return res.status(500).json(result);
-        }
-        
+        return res.status(result.success ? 200 : 500).json(result);
     } catch (error: any) {
-        console.error('[TOLA NFT] Transfer error:', error);
-        return res.status(500).json({
-            success: false,
-            error: error.message || 'Internal server error'
-        });
+        return res.status(500).json({ success: false, error: error.message });
     }
 });
 
-// NFT Lookup endpoint - Get NFT details by mint address
+// NFT Lookup endpoint
 app.get('/api/tola/nft/:mint_address', async (req, res) => {
     try {
-        const { mint_address } = req.params;
-        
-        if (!mint_address) {
-            return res.status(400).json({
-                success: false,
-                error: 'Mint address required'
-            });
+        if (!nftService) {
+            return res.status(503).json({ success: false, error: 'NFT service not available' });
         }
-        
-        const result = await nftService.getNFT(mint_address);
-        
+        const result = await nftService.getNFT(req.params.mint_address);
         return res.status(result.success ? 200 : 404).json(result);
-        
     } catch (error: any) {
-        console.error('[TOLA NFT] Lookup error:', error);
-        return res.status(500).json({
-            success: false,
-            error: error.message || 'Internal server error'
-        });
+        return res.status(500).json({ success: false, error: error.message });
     }
 });
 
-// NFT Minting webhook for WordPress
-app.post('/wc/webhooks/nft-minted', (req, res) => {
-    console.log('[WEBHOOK] NFT minted:', {
-        user_id: req.body?.user_id,
-        mint_address: req.body?.mint_address,
-        title: req.body?.title
-    });
-    
-    res.json({
-        success: true,
-        message: 'NFT mint webhook received'
-    });
-});
-
 // ============================================
-// ATELIER LAB WEBHOOKS (v4.0.0)
-// ============================================
-
-// Generation completed webhook
-app.post('/wc/webhooks/generation-completed', (req, res) => {
-    console.log('[WEBHOOK] Generation completed:', {
-        user_id: req.body?.user_id,
-        type: req.body?.type,
-        count: req.body?.count,
-        cost: req.body?.cost,
-        agent: req.body?.agent
-    });
-    
-    res.json({
-        success: true,
-        message: 'Generation webhook received',
-        timestamp: new Date().toISOString()
-    });
-});
-
-// Style transfer webhook
-app.post('/wc/webhooks/style-transfer', (req, res) => {
-    console.log('[WEBHOOK] Style transfer:', {
-        user_id: req.body?.user_id,
-        style_type: req.body?.style_type,
-        preset: req.body?.preset,
-        cost: req.body?.cost
-    });
-    
-    res.json({
-        success: true,
-        message: 'Style transfer webhook received'
-    });
-});
-
-// Artwork saved webhook
-app.post('/wc/webhooks/artwork-saved', (req, res) => {
-    console.log('[WEBHOOK] Artwork saved:', {
-        user_id: req.body?.user_id,
-        post_id: req.body?.post_id,
-        visibility: req.body?.visibility
-    });
-    
-    res.json({
-        success: true,
-        message: 'Artwork saved webhook received'
-    });
-});
-
-// Product listed webhook (WCFM)
-app.post('/wc/webhooks/product-listed', (req, res) => {
-    console.log('[WEBHOOK] Product listed:', {
-        user_id: req.body?.user_id,
-        product_id: req.body?.product_id,
-        price: req.body?.price,
-        source: req.body?.source || 'atelier-lab'
-    });
-    
-    res.json({
-        success: true,
-        message: 'Product listing webhook received'
-    });
-});
-
-// HURAII Vision analysis webhook
-app.post('/wc/webhooks/huraii-vision', (req, res) => {
-    console.log('[WEBHOOK] HURAII Vision:', {
-        user_id: req.body?.user_id,
-        analysis_level: req.body?.analysis_level,
-        has_description: !!req.body?.description
-    });
-    
-    res.json({
-        success: true,
-        message: 'HURAII Vision webhook received'
-    });
-});
-
-// Style-guided generation webhook
-app.post('/wc/webhooks/style-guided-generation', (req, res) => {
-    console.log('[WEBHOOK] Style-guided generation:', {
-        user_id: req.body?.user_id,
-        style_fidelity: req.body?.style_fidelity,
-        count: req.body?.count,
-        has_style_image: !!req.body?.style_image
-    });
-    
-    res.json({
-        success: true,
-        message: 'Style-guided generation webhook received'
-    });
-});
-
-// ============================================
-// SERVER START - Must be LAST
+// SERVER START
 // ============================================
 
 app.listen(PORT, () => {
     console.log(`\n========================================`);
-    console.log(`[VORTEX ENGINE] v4.0.1`);
-    console.log(`[VORTEX ENGINE] USDC-First + AI Evolution`);
+    console.log(`[VORTEX ENGINE] v4.0.0`);
+    console.log(`[VORTEX ENGINE] USDC-First Architecture`);
     console.log(`========================================\n`);
     console.log(`Server: http://localhost:${PORT}`);
-    console.log(`Health: http://localhost:${PORT}/health\n`);
+    console.log(`Health: http://localhost:${PORT}/health`);
+    console.log(`Debug:  http://localhost:${PORT}/debug/routes\n`);
     
-    console.log(`USDC Payment System (User-Facing)`);
-    console.log(`  POST /api/usdc/transfer - Transfer USDC to wallet`);
-    console.log(`  GET  /api/usdc/balance/:wallet - Get USDC balance`);
-    console.log(`  GET  /api/usdc/verify/:signature - Verify transaction\n`);
+    console.log(`Route Status:`);
+    Object.entries(routeStatus).forEach(([name, loaded]) => {
+        console.log(`  ${loaded ? '✓' : '✗'} ${name}`);
+    });
     
-    console.log(`USDC Spending & Earning Tracking`);
-    console.log(`  POST /api/spending/record - Record USDC spending`);
-    console.log(`  POST /api/spending/earning - Record vendor earning (WCFM)`);
-    console.log(`  GET  /api/spending/history/:user_id - Get spending history`);
-    console.log(`  GET  /api/spending/summary/:user_id - Get spending summary`);
-    console.log(`  GET  /api/spending/earnings/:user_id - Get vendor earnings`);
-    console.log(`  POST /api/spending/webhook - WordPress webhook\n`);
+    console.log(`\nService Status:`);
+    console.log(`  ${usdcService ? '✓' : '✗'} USDCTransferService`);
+    console.log(`  ${tolaService ? '✓' : '✗'} TOLATransferService`);
+    console.log(`  ${nftService ? '✓' : '✗'} TOLANFTMintService`);
     
-    console.log(`NFT Swap System (Artists Only)`);
-    console.log(`  POST /api/swap/execute - Execute single NFT swap`);
-    console.log(`  POST /api/swap/execute-collection - Execute collection swap`);
-    console.log(`  GET  /api/swap/verify/:swap_id - Verify swap status`);
-    console.log(`  GET  /api/swap/fees - Get swap fee structure`);
-    console.log(`  Fee: 5 USDC per user (10 USDC total)\n`);
-    
-    console.log(`TOLA-ART Masterpiece System (Daily at 00:00 Miami)`);
-    console.log(`  POST /api/tola-masterpiece/distribute-royalty - Distribute royalties`);
-    console.log(`  POST /api/tola-masterpiece/verify-secondary-sale - Verify sale`);
-    console.log(`  GET  /api/tola-masterpiece/status - System status`);
-    console.log(`  Minted on: TOLA (Solana) | Price: 900 USDC`);
-    console.log(`  Royalties: 5% Platform + 15% Artists (20% on-chain)\n`);
-    
-    console.log(`TOLA Incentive System (Backend Only)`);
-    console.log(`  POST /api/tola/transfer - Distribute TOLA rewards`);
-    console.log(`  GET  /api/tola/balance/:wallet - Check TOLA incentives`);
-    console.log(`  GET  /api/tola/verify/:signature - Verify TOLA TX\n`);
-    
-    console.log(`NFT Minting System`);
-    console.log(`  POST /api/tola/mint-nft - Mint NFT and transfer to user`);
-    console.log(`  POST /api/tola/upload-metadata - Upload metadata to Arweave`);
-    console.log(`  POST /api/tola/transfer-nft - Transfer NFT to wallet`);
-    console.log(`  GET  /api/tola/nft/:mint - Get NFT details\n`);
-    
-    console.log(`AI Evolution System (v4.0.0)`);
-    console.log(`  Test-Time Scaling:`);
-    console.log(`    POST /api/evolution/scaling/start - Start scaling session`);
-    console.log(`    POST /api/evolution/scaling/complete - Complete session`);
-    console.log(`    GET  /api/evolution/scaling/status - Get status`);
-    console.log(`  Genetic Evolution:`);
-    console.log(`    POST /api/evolution/genetic/update - Update population`);
-    console.log(`    POST /api/evolution/genetic/fitness - Record fitness`);
-    console.log(`    GET  /api/evolution/genetic/status - Get status`);
-    console.log(`  Open Model Hub:`);
-    console.log(`    POST /api/evolution/models/discovered - Record discovery`);
-    console.log(`    POST /api/evolution/models/integrate - Integrate technique`);
-    console.log(`    GET  /api/evolution/models/status - Get status`);
-    console.log(`  Real-Time Thinking:`);
-    console.log(`    POST /api/evolution/thinking/record - Record session`);
-    console.log(`    GET  /api/evolution/thinking/status - Get status`);
-    console.log(`  Training Observatory:`);
-    console.log(`    POST /api/evolution/observatory/metric - Record metric`);
-    console.log(`    GET  /api/evolution/observatory/levels - Training levels`);
-    console.log(`    GET  /api/evolution/observatory/metrics - Aggregated metrics`);
-    console.log(`  GET  /api/evolution/status - Full system status\n`);
-    
-    console.log(`Agentic AI System (v4.0.0)`);
-    console.log(`  Intelligent Routing:`);
-    console.log(`    POST /api/agentic/route - Route request to optimal agent`);
-    console.log(`    POST /api/agentic/classify - Classify intent from prompt`);
-    console.log(`    GET  /api/agentic/agents - Get available agents`);
-    console.log(`    POST /api/agentic/execute - Execute with selected agent`);
-    console.log(`  NVIDIA Integration:`);
-    console.log(`    POST /api/agentic/nvidia/chat - Chat with Nemotron models`);
-    console.log(`    POST /api/agentic/nvidia/embed - Generate embeddings`);
-    console.log(`    GET  /api/agentic/nvidia/models - Get NVIDIA models`);
-    console.log(`  Unified Pipeline:`);
-    console.log(`    POST /api/agentic/pipeline/execute - Execute full pipeline`);
-    console.log(`    GET  /api/agentic/pipeline/status - Get pipeline status`);
-    console.log(`    POST /api/agentic/webhook/wordpress - WordPress webhook\n`);
-    
-    console.log(`Cosmos AI System (v4.0.0) - SECRET SAUCE`);
-    console.log(`  Robot Management:`);
-    console.log(`    POST /api/cosmos/robot/:id/connect - Connect robot`);
-    console.log(`    POST /api/cosmos/robot/:id/heartbeat - Robot heartbeat`);
-    console.log(`    POST /api/cosmos/robot/:id/disconnect - Disconnect robot`);
-    console.log(`    GET  /api/cosmos/robot/:id/status - Get robot status`);
-    console.log(`  Robot Commands:`);
-    console.log(`    POST /api/cosmos/robot/:id/command - Send command`);
-    console.log(`    POST /api/cosmos/robot/:id/sensor - Receive sensor data`);
-    console.log(`    POST /api/cosmos/robot/:id/speak - Speech synthesis`);
-    console.log(`    POST /api/cosmos/robot/:id/move - Movement commands`);
-    console.log(`    POST /api/cosmos/robot/:id/create - Art creation`);
-    console.log(`  User Data:`);
-    console.log(`    GET  /api/cosmos/user/:id/export - Export user profile`);
-    console.log(`  Transactions:`);
-    console.log(`    POST /api/cosmos/transaction/initiate - Start transaction`);
-    console.log(`    POST /api/cosmos/transaction/:id/confirm - Confirm\n`);
-    
-    console.log(`WordPress Webhooks:`);
-    console.log(`  POST /wc/webhooks/wallet-connected`);
-    console.log(`  POST /wc/webhooks/subscription-activated`);
-    console.log(`  POST /wc/webhooks/usage-payment (USDC)`);
-    console.log(`  POST /wc/webhooks/order-created`);
-    console.log(`  POST /wc/webhooks/order-paid`);
-    console.log(`  POST /wc/webhooks/product-published`);
-    console.log(`  POST /wc/webhooks/nft-minted`);
-    console.log(`  POST /api/swap/webhook/completed`);
-    console.log(`  POST /api/tola-masterpiece/webhook/created`);
-    console.log(`  POST /api/tola-masterpiece/webhook/sold`);
-    console.log(`  POST /api/evolution/webhook/wordpress - Evolution updates\n`);
-    
-    console.log(`Blockchain:`);
-    console.log(`  Network: ${process.env.SOLANA_NETWORK || 'mainnet-beta'}`);
-    console.log(`  USDC Mint: ${process.env.USDC_MINT?.substring(0, 20) || 'not set'}...`);
-    console.log(`  TOLA Mint: ${process.env.TOLA_MINT?.substring(0, 20) || 'not set'}...`);
-    console.log(`  Treasury: ${process.env.TREASURY_WALLET_PUBLIC?.substring(0, 20) || 'not set'}...\n`);
-    
-    console.log(`All systems operational - Ready for requests\n`);
+    console.log(`\nAll systems operational - Ready for requests\n`);
 });
