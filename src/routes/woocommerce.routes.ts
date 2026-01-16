@@ -110,7 +110,8 @@ router.post('/webhooks/order-created', validateWooCommerceWebhook, async (req: R
         const intent = await paymentService.createPaymentIntent({
             orderId: order.id,
             amountUSD: usdAmount,
-            amountTOLA: tolaAmount,
+            amountToken: tolaAmount,
+            currency: 'TOLA',
             buyerEmail: order.billing.email,
             items: order.line_items.map((item: any) => ({
                 productId: item.product_id,
