@@ -6,6 +6,7 @@
  * SECONDARY: TOLA incentive distribution (backend only)
  * 
  * @version 4.0.0
+ * @build 2026-01-16-v4.0.0-WEBHOOK-FIX
  */
 
 import express from 'express';
@@ -50,6 +51,9 @@ const royaltyRoutes = safeLoadRoute('royalty', '/api/royalty', () => require('./
 const kvCacheRoutes = safeLoadRoute('kv-cache', '/api/kv-cache', () => require('./routes/kv-cache.routes').default);
 const scalingRoutes = safeLoadRoute('scaling', '/api/scaling', () => require('./routes/scaling.routes').default);
 const assetsRoutes = safeLoadRoute('assets', '/api/assets', () => require('./routes/assets.routes').assetsRoutes);
+const tolaRoutes = safeLoadRoute('tola', '/tola', () => require('./routes/tola.routes').tolaRoutes);
+const wooCommerceRoutes = safeLoadRoute('woocommerce', '/wc', () => require('./routes/woocommerce.routes').wooCommerceRoutes);
+const usdcRoutes = safeLoadRoute('usdc', '/api/usdc', () => require('./routes/usdc.routes').usdcRoutes);
 
 // Mount routes (only if loaded successfully)
 if (balanceSyncRoutes) app.use('/api', balanceSyncRoutes);
@@ -63,6 +67,9 @@ if (royaltyRoutes) app.use('/api/royalty', royaltyRoutes);
 if (kvCacheRoutes) app.use('/api/kv-cache', kvCacheRoutes);
 if (scalingRoutes) app.use('/api/scaling', scalingRoutes);
 if (assetsRoutes) app.use('/api/assets', assetsRoutes);
+if (tolaRoutes) app.use('/tola', tolaRoutes);
+if (wooCommerceRoutes) app.use('/wc', wooCommerceRoutes);
+if (usdcRoutes) app.use('/api/usdc', usdcRoutes);
 
 // Initialize services with error handling
 let usdcService: any = null;
@@ -99,13 +106,17 @@ app.get('/health', (req, res) => {
         success: true,
         status: 'online',
         version: '4.0.0',
-        build: '2026-01-15-v4.0.6-RAILWAY-FIX',
+        build: '2026-01-16-v4.0.0-WEBHOOK-FIX',
         timestamp: new Date().toISOString(),
         routes_loaded: routeStatus,
         services: {
             usdc: !!usdcService,
             tola: !!tolaService,
             nft: !!nftService
+        },
+        webhooks: {
+            woocommerce: 14,
+            loaded: !!wooCommerceRoutes
         }
     });
 });
@@ -203,6 +214,123 @@ app.post('/wc/webhooks/usage-payment', (req, res) => {
         cost: req.body?.usage?.cost_tola
     });
     res.json({ success: true, message: 'Usage payment webhook received' });
+});
+
+// Stripe purchase completed webhook
+app.post('/wc/webhooks/stripe-purchase-completed', (req, res) => {
+    console.log('[WEBHOOK] Stripe purchase completed:', {
+        user_id: req.body?.user?.id,
+        payment_intent: req.body?.payment?.intent_id,
+        amount: req.body?.payment?.amount,
+        currency: req.body?.payment?.currency
+    });
+    res.json({ success: true, message: 'Stripe purchase webhook received' });
+});
+
+// Balance spent webhook
+app.post('/wc/webhooks/balance-spent', (req, res) => {
+    console.log('[WEBHOOK] Balance spent:', {
+        user_id: req.body?.user?.id,
+        amount: req.body?.amount,
+        reason: req.body?.reason,
+        balance_after: req.body?.balance_after
+    });
+    res.json({ success: true, message: 'Balance spent webhook received' });
+});
+
+// Balance sync webhook
+app.post('/wc/webhooks/balance-sync', (req, res) => {
+    console.log('[WEBHOOK] Balance sync:', {
+        user_id: req.body?.user?.id,
+        wallet_address: req.body?.wallet_address,
+        usdc_balance: req.body?.balances?.usdc,
+        tola_balance: req.body?.balances?.tola
+    });
+    res.json({ success: true, message: 'Balance sync webhook received' });
+});
+
+// NFT minted webhook
+app.post('/wc/webhooks/nft-minted', (req, res) => {
+    console.log('[WEBHOOK] NFT minted:', {
+        user_id: req.body?.user?.id,
+        mint_address: req.body?.nft?.mint_address,
+        product_id: req.body?.nft?.product_id,
+        metadata_uri: req.body?.nft?.metadata_uri
+    });
+    res.json({ success: true, message: 'NFT minted webhook received' });
+});
+
+// Generation completed webhook (Atelier Lab)
+app.post('/wc/webhooks/generation-completed', (req, res) => {
+    console.log('[WEBHOOK] Generation completed:', {
+        user_id: req.body?.user?.id,
+        generation_id: req.body?.generation?.id,
+        type: req.body?.generation?.type,
+        model: req.body?.generation?.model
+    });
+    res.json({ success: true, message: 'Generation completed webhook received' });
+});
+
+// Style transfer webhook (Atelier Lab)
+app.post('/wc/webhooks/style-transfer', (req, res) => {
+    console.log('[WEBHOOK] Style transfer:', {
+        user_id: req.body?.user?.id,
+        source_id: req.body?.transfer?.source_id,
+        target_id: req.body?.transfer?.target_id,
+        style: req.body?.transfer?.style
+    });
+    res.json({ success: true, message: 'Style transfer webhook received' });
+});
+
+// Artwork saved webhook (Atelier Lab)
+app.post('/wc/webhooks/artwork-saved', (req, res) => {
+    console.log('[WEBHOOK] Artwork saved:', {
+        user_id: req.body?.user?.id,
+        artwork_id: req.body?.artwork?.id,
+        title: req.body?.artwork?.title,
+        format: req.body?.artwork?.format
+    });
+    res.json({ success: true, message: 'Artwork saved webhook received' });
+});
+
+// Collector subscription webhook
+app.post('/wc/webhooks/collector-subscription', (req, res) => {
+    console.log('[WEBHOOK] Collector subscription:', {
+        user_id: req.body?.user?.id,
+        tier: req.body?.subscription?.tier,
+        status: req.body?.subscription?.status
+    });
+    res.json({ success: true, message: 'Collector subscription webhook received' });
+});
+
+// Product listed webhook
+app.post('/wc/webhooks/product-listed', (req, res) => {
+    console.log('[WEBHOOK] Product listed:', {
+        product_id: req.body?.product?.id,
+        vendor_id: req.body?.product?.vendor_id,
+        price: req.body?.product?.price
+    });
+    res.json({ success: true, message: 'Product listed webhook received' });
+});
+
+// HURAII vision webhook (Atelier Lab)
+app.post('/wc/webhooks/huraii-vision', (req, res) => {
+    console.log('[WEBHOOK] HURAII vision:', {
+        user_id: req.body?.user?.id,
+        image_id: req.body?.vision?.image_id,
+        analysis_type: req.body?.vision?.analysis_type
+    });
+    res.json({ success: true, message: 'HURAII vision webhook received' });
+});
+
+// Style-guided generation webhook (Atelier Lab)
+app.post('/wc/webhooks/style-guided-generation', (req, res) => {
+    console.log('[WEBHOOK] Style-guided generation:', {
+        user_id: req.body?.user?.id,
+        style_id: req.body?.generation?.style_id,
+        prompt: req.body?.generation?.prompt
+    });
+    res.json({ success: true, message: 'Style-guided generation webhook received' });
 });
 
 // USDC Transfer endpoint

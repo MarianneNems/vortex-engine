@@ -1,3 +1,9 @@
+/**
+ * WooCommerce HMAC Middleware
+ * @version 4.0.0
+ * @description Validates WooCommerce webhook signatures
+ */
+
 import { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 
