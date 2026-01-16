@@ -218,5 +218,67 @@ export class DatabaseService {
             throw error;
         }
     }
+    
+    /**
+     * Execute a raw SQL query via WordPress AJAX
+     * Note: This is for read-only queries; WordPress handles sanitization
+     */
+    async query<T>(sql: string): Promise<T | null> {
+        try {
+            const response = await axios.post(`${WP_AJAX_URL}`, new URLSearchParams({
+                action: 'vortex_execute_query',
+                query: sql
+            }));
+            
+            if (response.data.success) {
+                return response.data.data as T;
+            }
+            return null;
+            
+        } catch (error) {
+            logger.error('[DB] Query error:', error);
+            return null;
+        }
+    }
+    
+    /**
+     * Get user balance from WordPress
+     */
+    async getUserBalance(userId: number, currency: 'usdc' | 'tola' = 'usdc'): Promise<number> {
+        try {
+            const response = await axios.get(
+                `${WP_AJAX_URL}?action=vortex_get_user_balance&user_id=${userId}&currency=${currency}`
+            );
+            
+            if (response.data.success) {
+                return parseFloat(response.data.data.balance) || 0;
+            }
+            return 0;
+            
+        } catch (error) {
+            logger.error('[DB] Get user balance error:', error);
+            return 0;
+        }
+    }
+    
+    /**
+     * Update user balance in WordPress
+     */
+    async updateUserBalance(userId: number, amount: number, currency: 'usdc' | 'tola' = 'usdc'): Promise<boolean> {
+        try {
+            const response = await axios.post(`${WP_AJAX_URL}`, new URLSearchParams({
+                action: 'vortex_update_user_balance',
+                user_id: userId.toString(),
+                amount: amount.toString(),
+                currency
+            }));
+            
+            return response.data.success;
+            
+        } catch (error) {
+            logger.error('[DB] Update user balance error:', error);
+            return false;
+        }
+    }
 }
 

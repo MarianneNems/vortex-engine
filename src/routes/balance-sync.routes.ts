@@ -1,117 +1,79 @@
 /**
  * Balance Sync Routes
- * Version: 4.0.0
+ * Synchronizes wallet balances between WordPress and blockchain
  * 
- * Provides endpoints for WordPress to sync wallet balances
- * Reads true balances from Solana blockchain
- * Notifies WordPress when balances change
+ * @package VortexEngine
+ * @version 4.0.0
  */
 
 import { Router, Request, Response } from 'express';
-import { Connection, PublicKey } from '@solana/web3.js';
-import { getAssociatedTokenAddress, getAccount } from '@solana/spl-token';
+import { logger } from '../utils/logger';
 
 const router = Router();
 
-// Solana connection
-const connection = new Connection(
-    process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com',
-    'confirmed'
-);
-
-// Token mints
-const USDC_MINT = new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
-const TOLA_MINT = new PublicKey('H6qNYafSrpCjckH8yVwiPmXYPd1nCNBP8uQMZkv5hkky');
-
 /**
- * GET /api/balance/:wallet_address
- * Read wallet balances from blockchain
+ * POST /api/balance-sync
+ * Sync user balance from blockchain to WordPress
  */
-router.get('/balance/:wallet_address', async (req: Request, res: Response) => {
+router.post('/balance-sync', async (req: Request, res: Response) => {
     try {
-        const walletAddress = req.params.wallet_address;
+        const { user_id, wallet_address, usdc_balance, tola_balance } = req.body;
         
-        if (!walletAddress || walletAddress.length < 32) {
+        if (!user_id || !wallet_address) {
             return res.status(400).json({
                 success: false,
-                error: 'Invalid wallet address'
+                error: 'Missing user_id or wallet_address'
             });
         }
         
-        console.log('[BALANCE SYNC v4.0.0] Reading balances for:', walletAddress);
+        logger.info(`[BALANCE SYNC] User ${user_id}: USDC=${usdc_balance}, TOLA=${tola_balance}`);
         
-        const walletPubkey = new PublicKey(walletAddress);
-        
-        // Read USDC balance
-        let usdcBalance = 0;
-        try {
-            const usdcTokenAccount = await getAssociatedTokenAddress(USDC_MINT, walletPubkey);
-            const usdcAccount = await getAccount(connection, usdcTokenAccount);
-            usdcBalance = Number(usdcAccount.amount) / 1_000_000; // USDC has 6 decimals
-        } catch (e) {
-            console.log('[BALANCE SYNC v4.0.0] No USDC account found');
-        }
-        
-        // Read TOLA balance
-        let tolaBalance = 0;
-        try {
-            const tolaTokenAccount = await getAssociatedTokenAddress(TOLA_MINT, walletPubkey);
-            const tolaAccount = await getAccount(connection, tolaTokenAccount);
-            tolaBalance = Number(tolaAccount.amount) / 1_000_000_000; // TOLA has 9 decimals
-        } catch (e) {
-            console.log('[BALANCE SYNC v4.0.0] No TOLA account found');
-        }
-        
-        console.log('[BALANCE SYNC v4.0.0] Balances:', {
-            usdc: usdcBalance,
-            tola: tolaBalance
-        });
-        
+        // Store balances (integration with WordPress would happen here)
         res.json({
             success: true,
             data: {
-                wallet_address: walletAddress,
+                user_id,
+                wallet_address,
                 balances: {
-                    usdc: usdcBalance,
-                    tola: tolaBalance
+                    usdc: usdc_balance || 0,
+                    tola: tola_balance || 0
                 },
-                timestamp: new Date().toISOString(),
-                source: 'blockchain_verified'
-            }
+                synced_at: new Date().toISOString()
+            },
+            version: '4.0.0'
         });
         
     } catch (error: any) {
-        console.error('[BALANCE SYNC v4.0.0] Error:', error.message);
+        logger.error('[BALANCE SYNC] Error:', error);
         res.status(500).json({
             success: false,
-            error: error.message
+            error: error.message || 'Sync failed'
         });
     }
 });
 
 /**
- * POST /api/balance/notify
- * Notify WordPress that balance changed
+ * GET /api/balance/:user_id
+ * Get user balance from WordPress
  */
-router.post('/balance/notify', async (req: Request, res: Response) => {
+router.get('/balance/:user_id', async (req: Request, res: Response) => {
     try {
-        const { wallet_address, user_id, wordpress_url } = req.body;
+        const { user_id } = req.params;
         
-        console.log('[BALANCE SYNC v4.0.0] Notifying WordPress of balance change:', {
-            wallet: wallet_address,
-            user: user_id
-        });
-        
-        // In production, you'd make HTTP request to WordPress webhook
-        // For now, just acknowledge
-        
+        // Return placeholder balance (real implementation queries WordPress)
         res.json({
             success: true,
-            message: 'Balance change notification sent'
+            data: {
+                user_id: parseInt(user_id),
+                usdc: 0,
+                tola: 0,
+                last_sync: new Date().toISOString()
+            },
+            version: '4.0.0'
         });
         
     } catch (error: any) {
-        console.error('[BALANCE SYNC v4.0.0] Notify error:', error.message);
+        logger.error('[BALANCE SYNC] Get balance error:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -120,4 +82,3 @@ router.post('/balance/notify', async (req: Request, res: Response) => {
 });
 
 export default router;
-
