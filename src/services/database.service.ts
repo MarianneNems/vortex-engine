@@ -1,6 +1,7 @@
 /**
  * Database Service - Data persistence layer
  * Uses WordPress database via REST API
+ * @version 4.0.0
  */
 
 import axios from 'axios';

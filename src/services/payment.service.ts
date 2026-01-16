@@ -1,5 +1,7 @@
 /**
  * Payment Service - TOLA Payment Processing
+ * @version 4.0.0
+ * @description Handles TOLA payment intents and verification
  */
 
 import { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';

@@ -1,5 +1,7 @@
 /**
  * WooCommerce Service - REST API Integration
+ * @version 4.0.0
+ * @description Handles WooCommerce REST API calls for products and orders
  */
 
 import axios from 'axios';

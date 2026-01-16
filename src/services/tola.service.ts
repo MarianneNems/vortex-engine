@@ -1,5 +1,7 @@
 /**
  * TOLA Service - Dexscreener & Jupiter Integration
+ * @version 4.0.0
+ * @description Fetches TOLA metrics and swap quotes
  */
 
 import axios from 'axios';
