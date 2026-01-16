@@ -1,95 +1,70 @@
-# Vortex Engine Configuration v4.0.0
-# Copy this to .env and fill in your values
-# USDC-First Architecture with NFT Minting
-
-PORT=3000
-NODE_ENV=production
-
 # ============================================
-# SOLANA BLOCKCHAIN CONFIGURATION
+# VORTEX ENGINE - Environment Configuration
+# Version: 4.0.0
+# ============================================
+# Rename this file to .env on Railway
+# NEVER commit .env to version control
 # ============================================
 
-# RPC URL - Use Helius, QuickNode, or other reliable provider
-# Free tier: https://api.mainnet-beta.solana.com (rate limited)
-# Recommended: Helius (https://helius.xyz) or QuickNode
-SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
-SOLANA_NETWORK=mainnet-beta
+# ============================================
+# BLOCK 1: SOLANA RPC CONFIGURATION
+# ============================================
+# Premium RPC (Helius) - recommended for production
+SOLANA_RPC_URL=https://mainnet.helius-rpc.com/?api-key=b420b67c-b571-478f-b396-441659e3d464
+
+# Backup RPC (QuickNode)
+# SOLANA_RPC_URL=https://young-muddy-knowledge.solana-mainnet.quiknode.pro/43d5a05d9acf15c45c1ec0d5e08458b13e011da3
 
 # ============================================
-# TREASURY WALLET (CRITICAL - KEEP SECURE)
+# BLOCK 2: TREASURY WALLET (CONFIGURED)
 # ============================================
-
-# Public address of your treasury wallet
-TREASURY_WALLET_PUBLIC=YOUR_TREASURY_WALLET_PUBLIC_ADDRESS
-
-# Private key in Base58 format (NEVER share this)
-# Generate with: solana-keygen new --outfile treasury.json
-# Convert to base58: cat treasury.json | base58
-TREASURY_WALLET_PRIVATE=YOUR_TREASURY_WALLET_PRIVATE_KEY_BASE58
+# ⚠️ PRIVATE KEY: Set ONLY in Railway dashboard - NEVER in files!
+# TREASURY_WALLET_PRIVATE=<SET_IN_RAILWAY_ONLY>
+TREASURY_WALLET_PUBLIC=EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz
+PLATFORM_TREASURY_PUBKEY=EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz
 
 # ============================================
-# TOKEN MINT ADDRESSES (Solana Mainnet)
+# BLOCK 3: TOKEN MINT ADDRESSES
 # ============================================
-
-# USDC (Circle's official Solana USDC)
-USDC_MINT=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
-
-# TOLA (Vortex incentive token)
+# TOLA Token (Vortex native token)
 TOLA_MINT=H6qNYafSrpCjckH8yVwiPmXYPd1nCNBP8uQMZkv5hkky
 
-# ============================================
-# NFT MINTING CONFIGURATION
-# ============================================
-
-# Bundlr/Arweave for metadata storage
-BUNDLR_ADDRESS=https://node1.bundlr.network
-
-# Platform royalty basis points (500 = 5%)
-NFT_ROYALTY_BPS=500
+# USDC Token (Solana mainnet)
+USDC_MINT=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
 
 # ============================================
-# WORDPRESS INTEGRATION
+# BLOCK 4: WOOCOMMERCE API (CONFIGURED)
 # ============================================
-
-# Your WordPress site URL
-WP_BASE_URL=https://your-site.com
-WP_AJAX_URL=https://your-site.com/wp-admin/admin-ajax.php
-WP_API_URL=https://your-site.com/wp-json
-
-# WooCommerce API credentials
-WOO_CONSUMER_KEY=your_woocommerce_consumer_key
-WOO_CONSUMER_SECRET=your_woocommerce_consumer_secret
-WOO_WEBHOOK_SECRET=your_webhook_secret_for_hmac
+WOO_BASE_URL=https://vortexartec.com
+WOO_CONSUMER_KEY=ck_4510f53c036fd32261644de2eff7983e3fdc3e57
+WOO_CONSUMER_SECRET=cs_c3ddbed003096a5849b9e1106c77469acb361e12
+WOO_WEBHOOK_SECRET=vortex_wc_webhook_2026
 
 # ============================================
-# EXTERNAL APIS
+# BLOCK 5: WORDPRESS INTEGRATION
 # ============================================
+WP_AJAX_URL=https://vortexartec.com/wp-admin/admin-ajax.php
+WP_API_URL=https://vortexartec.com/wp-json
 
-# Jupiter Aggregator (for token swaps)
+# ============================================
+# BLOCK 6: API SECURITY KEYS (CONFIGURED)
+# ============================================
+VORTEX_API_KEY=21e28f341dea15f119941fed4cad0b8dd55f81aa6ee0618046511808010b4ecf
+VORTEX_ADMIN_API_KEY=05e33ca3dcf01332bfb78016b0c32df74b264d0f40027a961b02afa0f618f6a9
+
+# ============================================
+# BLOCK 7: PLATFORM CONFIGURATION
+# ============================================
+PORT=3000
+PLATFORM_FEE_BPS=250
+ALLOWED_ORIGINS=https://vortexartec.com,https://www.vortexartec.com
+
+# ============================================
+# BLOCK 8: EXTERNAL APIS & LOGGING
+# ============================================
 JUP_API=https://quote-api.jup.ag/v6
-
-# DexScreener (for price data)
 DEXSCREENER_BASE=https://api.dexscreener.com/latest/dex
-
-# ============================================
-# SECURITY
-# ============================================
-
-# API authentication key
-API_SECRET_KEY=your_secret_key_for_api_auth
-
-# Rate limiting
-RATE_LIMIT_MAX=100
-RATE_LIMIT_WINDOW=900000
-
-# ============================================
-# DEPLOYMENT CHECKLIST
-# ============================================
-# [ ] Treasury wallet has SOL for gas fees (min 0.1 SOL)
-# [ ] Treasury wallet has USDC token account
-# [ ] Treasury wallet has TOLA token account
-# [ ] TREASURY_WALLET_PRIVATE is set correctly
-# [ ] SOLANA_RPC_URL is a reliable provider
-# [ ] WordPress webhook endpoints are configured
-# [ ] WooCommerce API credentials are valid
-
+NODE_ENV=production
+LOG_LEVEL=info
+LOG_FORMAT=json
+SERVICE_NAME=vortex-engine
