@@ -1,5 +1,7 @@
 /**
  * WooCommerce Webhook Routes
+ * @version 4.0.0
+ * @description Handles WooCommerce webhooks for product, order, and payment events
  */
 
 import { Router, Request, Response } from 'express';
