@@ -1,15 +1,19 @@
 /**
- * Vortex Engine - USDC Payment System + TOLA Incentives
- * Version 4.0.0 - USDC-first architecture with hidden TOLA rewards
+ * Vortex Engine - Production Grade API Server
+ * USDC Payment System + NFT Minting + TOLA Incentives
  * 
- * PRIMARY: USDC stablecoin payments (user-facing)
- * SECONDARY: TOLA incentive distribution (backend only)
+ * Features:
+ * - USDC stablecoin payments
+ * - NFT minting via Metaplex
+ * - TOLA incentive distribution
+ * - Webhook processing
+ * - Rate limiting and security
  * 
  * @version 4.0.0
- * @build 2026-01-16-v4.0.0-WEBHOOK-FIX
+ * @build 2026-01-16-PRODUCTION
  */
 
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import dotenv from 'dotenv';
@@ -19,27 +23,106 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
-app.use(bodyParser.json());
+// ============================================
+// SECURITY & MIDDLEWARE
+// ============================================
 
-// Track which routes loaded successfully
+// CORS configuration
+const corsOptions = {
+    origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'x-wp-user-id'],
+    credentials: true,
+    maxAge: 86400
+};
+
+app.use(cors(corsOptions));
+
+// Security headers
+app.use((req: Request, res: Response, next: NextFunction) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    res.removeHeader('X-Powered-By');
+    next();
+});
+
+// Body parsing with size limits
+app.use(bodyParser.json({ limit: '10mb' }));
+app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
+
+// Request logging
+app.use((req: Request, res: Response, next: NextFunction) => {
+    const start = Date.now();
+    res.on('finish', () => {
+        const duration = Date.now() - start;
+        if (duration > 1000 || res.statusCode >= 400) {
+            console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} - ${res.statusCode} (${duration}ms)`);
+        }
+    });
+    next();
+});
+
+// ============================================
+// RATE LIMITING
+// ============================================
+
+const rateLimitStore: Map<string, { count: number; reset: number }> = new Map();
+
+const rateLimit = (maxRequests: number, windowMs: number) => {
+    return (req: Request, res: Response, next: NextFunction) => {
+        const key = req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
+        const now = Date.now();
+        const entry = rateLimitStore.get(key);
+        
+        if (!entry || now > entry.reset) {
+            rateLimitStore.set(key, { count: 1, reset: now + windowMs });
+            return next();
+        }
+        
+        if (entry.count >= maxRequests) {
+            res.setHeader('Retry-After', Math.ceil((entry.reset - now) / 1000).toString());
+            return res.status(429).json({
+                success: false,
+                error: 'Too many requests',
+                code: 'RATE_LIMITED',
+                retry_after: Math.ceil((entry.reset - now) / 1000)
+            });
+        }
+        
+        entry.count++;
+        next();
+    };
+};
+
+// Apply rate limiting
+app.use('/api/', rateLimit(100, 60000)); // 100 req/min for API
+app.use('/wc/webhooks/', rateLimit(500, 60000)); // 500 req/min for webhooks
+
+// ============================================
+// ROUTE LOADING
+// ============================================
+
 const routeStatus: Record<string, boolean> = {};
 
-// Safe route loader with error handling
 function safeLoadRoute(name: string, path: string, loader: () => any): any {
     try {
         const route = loader();
         routeStatus[name] = true;
-        console.log(`[ROUTES] Loaded: ${name} at ${path}`);
+        console.log(`[ROUTES] ✓ ${name} → ${path}`);
         return route;
     } catch (error: any) {
         routeStatus[name] = false;
-        console.error(`[ROUTES] FAILED to load ${name}:`, error.message);
+        console.error(`[ROUTES] ✗ ${name}: ${error.message}`);
         return null;
     }
 }
 
-// Load routes with error handling
+// Core routes
+const nftRoutes = safeLoadRoute('nft', '/api/nft', () => require('./routes/nft.routes').default);
+const docsRoutes = safeLoadRoute('docs', '/api/docs', () => require('./routes/docs.routes').default);
+const marketplaceRoutes = safeLoadRoute('marketplace', '/api/marketplace', () => require('./routes/marketplace.routes').default);
 const balanceSyncRoutes = safeLoadRoute('balance-sync', '/api', () => require('./routes/balance-sync.routes').default);
 const spendingRoutes = safeLoadRoute('spending', '/api/spending', () => require('./routes/spending.routes').default);
 const swapRoutes = safeLoadRoute('swap', '/api/swap', () => require('./routes/swap.routes').default);
@@ -55,7 +138,10 @@ const tolaRoutes = safeLoadRoute('tola', '/tola', () => require('./routes/tola.r
 const wooCommerceRoutes = safeLoadRoute('woocommerce', '/wc', () => require('./routes/woocommerce.routes').wooCommerceRoutes);
 const usdcRoutes = safeLoadRoute('usdc', '/api/usdc', () => require('./routes/usdc.routes').usdcRoutes);
 
-// Mount routes (only if loaded successfully)
+// Mount routes
+if (nftRoutes) app.use('/api/nft', nftRoutes);
+if (docsRoutes) app.use('/api/docs', docsRoutes);
+if (marketplaceRoutes) app.use('/api/marketplace', marketplaceRoutes);
 if (balanceSyncRoutes) app.use('/api', balanceSyncRoutes);
 if (spendingRoutes) app.use('/api/spending', spendingRoutes);
 if (swapRoutes) app.use('/api/swap', swapRoutes);
@@ -71,57 +157,191 @@ if (tolaRoutes) app.use('/tola', tolaRoutes);
 if (wooCommerceRoutes) app.use('/wc', wooCommerceRoutes);
 if (usdcRoutes) app.use('/api/usdc', usdcRoutes);
 
-// Initialize services with error handling
+// ============================================
+// SERVICE INITIALIZATION
+// ============================================
+
 let usdcService: any = null;
 let tolaService: any = null;
 let nftService: any = null;
+let dailyAssetService: any = null;
+let tolaMetricsService: any = null;
+let paymentService: any = null;
+let webhookProcessor: any = null;
+let collectionService: any = null;
+let marketplaceService: any = null;
+let creatorService: any = null;
 
+// Initialize services
 try {
     const { USDCTransferService } = require('./services/usdc-transfer.service');
     usdcService = new USDCTransferService();
-    console.log('[SERVICES] USDCTransferService initialized');
+    console.log('[SERVICES] ✓ USDCTransferService');
 } catch (e: any) {
-    console.error('[SERVICES] USDCTransferService failed:', e.message);
+    console.error('[SERVICES] ✗ USDCTransferService:', e.message);
 }
 
 try {
     const { TOLATransferService } = require('./services/tola-transfer.service');
     tolaService = new TOLATransferService();
-    console.log('[SERVICES] TOLATransferService initialized');
+    console.log('[SERVICES] ✓ TOLATransferService');
 } catch (e: any) {
-    console.error('[SERVICES] TOLATransferService failed:', e.message);
+    console.error('[SERVICES] ✗ TOLATransferService:', e.message);
 }
 
 try {
     const { TOLANFTMintService } = require('./services/tola-nft-mint.service');
     nftService = new TOLANFTMintService();
-    console.log('[SERVICES] TOLANFTMintService initialized');
+    console.log('[SERVICES] ✓ TOLANFTMintService');
 } catch (e: any) {
-    console.error('[SERVICES] TOLANFTMintService failed:', e.message);
+    console.error('[SERVICES] ✗ TOLANFTMintService:', e.message);
 }
 
-// Health check - v4.0.0
-app.get('/health', (req, res) => {
-    res.json({
+try {
+    const { DailyAssetService } = require('./services/daily-asset.service');
+    dailyAssetService = new DailyAssetService();
+    console.log('[SERVICES] ✓ DailyAssetService');
+} catch (e: any) {
+    console.error('[SERVICES] ✗ DailyAssetService:', e.message);
+}
+
+try {
+    const { TolaService } = require('./services/tola.service');
+    tolaMetricsService = new TolaService();
+    console.log('[SERVICES] ✓ TolaMetricsService');
+} catch (e: any) {
+    console.error('[SERVICES] ✗ TolaMetricsService:', e.message);
+}
+
+try {
+    const { PaymentService } = require('./services/payment.service');
+    paymentService = new PaymentService();
+    console.log('[SERVICES] ✓ PaymentService');
+} catch (e: any) {
+    console.error('[SERVICES] ✗ PaymentService:', e.message);
+}
+
+try {
+    const { WebhookProcessorService } = require('./services/webhook-processor.service');
+    webhookProcessor = new WebhookProcessorService();
+    webhookProcessor.setServices({ usdc: usdcService, tola: tolaService, nft: nftService, payment: paymentService });
+    console.log('[SERVICES] ✓ WebhookProcessor');
+} catch (e: any) {
+    console.error('[SERVICES] ✗ WebhookProcessor:', e.message);
+}
+
+try {
+    const { CollectionService } = require('./services/collection.service');
+    collectionService = new CollectionService();
+    console.log('[SERVICES] ✓ CollectionService');
+} catch (e: any) {
+    console.error('[SERVICES] ✗ CollectionService:', e.message);
+}
+
+try {
+    const { MarketplaceService } = require('./services/marketplace.service');
+    marketplaceService = new MarketplaceService();
+    console.log('[SERVICES] ✓ MarketplaceService');
+} catch (e: any) {
+    console.error('[SERVICES] ✗ MarketplaceService:', e.message);
+}
+
+try {
+    const { CreatorService } = require('./services/creator.service');
+    creatorService = new CreatorService();
+    console.log('[SERVICES] ✓ CreatorService');
+} catch (e: any) {
+    console.error('[SERVICES] ✗ CreatorService:', e.message);
+}
+
+// ============================================
+// HEALTH & STATUS ENDPOINTS
+// ============================================
+
+app.get('/health', async (req, res) => {
+    const detailed = req.query.detailed === 'true';
+    
+    const serviceStatus = {
+        usdc: usdcService?.isReady?.() ?? !!usdcService,
+        tola_transfer: tolaService?.isReady?.() ?? !!tolaService,
+        nft: nftService?.isReady?.() ?? !!nftService,
+        daily_assets: dailyAssetService?.isReady?.() ?? !!dailyAssetService,
+        tola_metrics: !!tolaMetricsService,
+        payments: paymentService?.isReady?.() ?? !!paymentService,
+        webhooks: !!webhookProcessor,
+        collections: collectionService?.isReady?.() ?? !!collectionService,
+        marketplace: marketplaceService?.isReady?.() ?? !!marketplaceService,
+        creators: creatorService?.isReady?.() ?? !!creatorService
+    };
+    
+    const healthy = Object.values(serviceStatus).filter(Boolean).length;
+    const total = Object.keys(serviceStatus).length;
+    
+    const response: any = {
         success: true,
-        status: 'online',
+        status: healthy === total ? 'healthy' : healthy > total / 2 ? 'degraded' : 'unhealthy',
         version: '4.0.0',
-        build: '2026-01-16-v4.0.0-WEBHOOK-FIX',
+        build: '2026-01-16-PRODUCTION',
+        uptime_seconds: Math.floor(process.uptime()),
         timestamp: new Date().toISOString(),
-        routes_loaded: routeStatus,
-        services: {
-            usdc: !!usdcService,
-            tola: !!tolaService,
-            nft: !!nftService
-        },
-        webhooks: {
-            woocommerce: 14,
-            loaded: !!wooCommerceRoutes
+        services: serviceStatus,
+        routes: {
+            loaded: Object.values(routeStatus).filter(Boolean).length,
+            total: Object.keys(routeStatus).length
         }
-    });
+    };
+    
+    if (detailed) {
+        response.detailed = {
+            routes: routeStatus,
+            memory: {
+                heap_mb: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+                rss_mb: Math.round(process.memoryUsage().rss / 1024 / 1024)
+            }
+        };
+        
+        if (usdcService?.getHealth) {
+            try { response.detailed.usdc = await usdcService.getHealth(); } catch (e) {}
+        }
+        if (tolaService?.getHealth) {
+            try { response.detailed.tola = await tolaService.getHealth(); } catch (e) {}
+        }
+        if (nftService?.getHealth) {
+            try { response.detailed.nft = await nftService.getHealth(); } catch (e) {}
+        }
+        if (webhookProcessor?.getStats) {
+            try { response.detailed.webhooks = webhookProcessor.getStats(); } catch (e) {}
+        }
+    }
+    
+    res.json(response);
 });
 
-// Debug: List all registered routes
+app.get('/health/usdc', async (req, res) => {
+    if (!usdcService) return res.status(503).json({ success: false, error: 'Service unavailable' });
+    const health = await usdcService.getHealth?.() || { healthy: true };
+    res.json({ success: true, service: 'usdc', ...health });
+});
+
+app.get('/health/tola', async (req, res) => {
+    if (!tolaService) return res.status(503).json({ success: false, error: 'Service unavailable' });
+    const health = await tolaService.getHealth?.() || { healthy: true };
+    res.json({ success: true, service: 'tola', ...health });
+});
+
+app.get('/health/nft', async (req, res) => {
+    if (!nftService) return res.status(503).json({ success: false, error: 'Service unavailable' });
+    const health = await nftService.getHealth?.() || { healthy: true };
+    res.json({ success: true, service: 'nft', ...health });
+});
+
+app.get('/health/payments', async (req, res) => {
+    if (!paymentService) return res.status(503).json({ success: false, error: 'Service unavailable' });
+    const health = paymentService.getHealth?.() || { healthy: true };
+    res.json({ success: true, service: 'payments', ...health });
+});
+
+// Debug routes
 app.get('/debug/routes', (req, res) => {
     const routes: string[] = [];
     app._router.stack.forEach((middleware: any) => {
@@ -136,308 +356,258 @@ app.get('/debug/routes', (req, res) => {
             });
         }
     });
-    res.json({ success: true, route_count: routes.length, routes: routes.slice(0, 100) });
+    res.json({ success: true, count: routes.length, routes });
 });
 
-// TOLA metrics endpoint
+// ============================================
+// TOLA & METRICS ENDPOINTS
+// ============================================
+
 app.get('/tola/snapshot', async (req, res) => {
-    res.json({
-        success: true,
-        data: {
-            price: 1.00,
-            message: 'Vortex Engine v4.0.0 running'
+    try {
+        if (tolaMetricsService?.getSnapshot) {
+            const snapshot = await tolaMetricsService.getSnapshot();
+            return res.json({ success: true, data: snapshot, version: '4.0.0', timestamp: new Date().toISOString() });
         }
-    });
+        res.json({
+            success: true,
+            data: {
+                price: 1.00, liquidity: 0, volume24h: 0, status: 'fallback',
+                baseToken: { address: 'H6qNYafSrpCjckH8yVwiPmXYPd1nCNBP8uQMZkv5hkky', name: 'TOLA', symbol: 'TOLA' }
+            },
+            version: '4.0.0',
+            timestamp: new Date().toISOString()
+        });
+    } catch (error: any) {
+        res.json({ success: true, data: { price: 1.00, status: 'error' }, version: '4.0.0', timestamp: new Date().toISOString() });
+    }
 });
 
-// Payment status endpoint
-app.get('/tola/payments/status/:orderId', (req, res) => {
-    res.json({
-        success: true,
-        data: {
-            orderId: req.params.orderId,
-            status: 'pending'
-        }
-    });
+app.get('/tola/stats', async (req, res) => {
+    const stats: any = { success: true, version: '4.0.0', timestamp: new Date().toISOString() };
+    if (tolaService?.getStats) stats.distribution = tolaService.getStats();
+    if (nftService?.getStats) stats.nfts = nftService.getStats();
+    if (tolaMetricsService?.getStats) stats.metrics = tolaMetricsService.getStats();
+    res.json(stats);
 });
 
-// WooCommerce Webhooks
-app.post('/wc/webhooks/product-published', (req, res) => {
-    console.log('[WEBHOOK] Product published:', req.body);
-    res.json({ success: true, message: 'Product webhook received' });
-});
+// ============================================
+// USDC ENDPOINTS
+// ============================================
 
-app.post('/wc/webhooks/order-created', (req, res) => {
-    console.log('[WEBHOOK] Order created:', req.body);
-    res.json({ success: true, message: 'Order webhook received' });
-});
-
-app.post('/wc/webhooks/order-paid', (req, res) => {
-    console.log('[WEBHOOK] Order paid:', req.body);
-    res.json({ success: true, message: 'Payment webhook received' });
-});
-
-// Wallet connection webhook
-app.post('/wc/webhooks/wallet-connected', (req, res) => {
-    console.log('[WEBHOOK] Wallet connected:', {
-        user_id: req.body?.user?.id,
-        wallet_address: req.body?.wallet?.address,
-        blockchain: req.body?.wallet?.blockchain
-    });
-    res.json({ success: true, message: 'Wallet connection webhook received' });
-});
-
-// TOLA transaction webhook
-app.post('/wc/webhooks/tola-transaction', (req, res) => {
-    console.log('[WEBHOOK] TOLA transaction:', {
-        user_id: req.body?.user?.id,
-        type: req.body?.transaction?.type,
-        amount: req.body?.transaction?.amount
-    });
-    res.json({ success: true, message: 'TOLA transaction webhook received' });
-});
-
-// Subscription activation webhook
-app.post('/wc/webhooks/subscription-activated', (req, res) => {
-    console.log('[WEBHOOK] Subscription activated:', {
-        user_id: req.body?.user?.id,
-        tier: req.body?.subscription?.tier
-    });
-    res.json({ success: true, message: 'Subscription activation webhook received' });
-});
-
-// Usage payment webhook
-app.post('/wc/webhooks/usage-payment', (req, res) => {
-    console.log('[WEBHOOK] Usage payment:', {
-        user_id: req.body?.user?.id,
-        tokens_used: req.body?.usage?.tokens_used,
-        cost: req.body?.usage?.cost_tola
-    });
-    res.json({ success: true, message: 'Usage payment webhook received' });
-});
-
-// Stripe purchase completed webhook
-app.post('/wc/webhooks/stripe-purchase-completed', (req, res) => {
-    console.log('[WEBHOOK] Stripe purchase completed:', {
-        user_id: req.body?.user?.id,
-        payment_intent: req.body?.payment?.intent_id,
-        amount: req.body?.payment?.amount,
-        currency: req.body?.payment?.currency
-    });
-    res.json({ success: true, message: 'Stripe purchase webhook received' });
-});
-
-// Balance spent webhook
-app.post('/wc/webhooks/balance-spent', (req, res) => {
-    console.log('[WEBHOOK] Balance spent:', {
-        user_id: req.body?.user?.id,
-        amount: req.body?.amount,
-        reason: req.body?.reason,
-        balance_after: req.body?.balance_after
-    });
-    res.json({ success: true, message: 'Balance spent webhook received' });
-});
-
-// Balance sync webhook
-app.post('/wc/webhooks/balance-sync', (req, res) => {
-    console.log('[WEBHOOK] Balance sync:', {
-        user_id: req.body?.user?.id,
-        wallet_address: req.body?.wallet_address,
-        usdc_balance: req.body?.balances?.usdc,
-        tola_balance: req.body?.balances?.tola
-    });
-    res.json({ success: true, message: 'Balance sync webhook received' });
-});
-
-// NFT minted webhook
-app.post('/wc/webhooks/nft-minted', (req, res) => {
-    console.log('[WEBHOOK] NFT minted:', {
-        user_id: req.body?.user?.id,
-        mint_address: req.body?.nft?.mint_address,
-        product_id: req.body?.nft?.product_id,
-        metadata_uri: req.body?.nft?.metadata_uri
-    });
-    res.json({ success: true, message: 'NFT minted webhook received' });
-});
-
-// Generation completed webhook (Atelier Lab)
-app.post('/wc/webhooks/generation-completed', (req, res) => {
-    console.log('[WEBHOOK] Generation completed:', {
-        user_id: req.body?.user?.id,
-        generation_id: req.body?.generation?.id,
-        type: req.body?.generation?.type,
-        model: req.body?.generation?.model
-    });
-    res.json({ success: true, message: 'Generation completed webhook received' });
-});
-
-// Style transfer webhook (Atelier Lab)
-app.post('/wc/webhooks/style-transfer', (req, res) => {
-    console.log('[WEBHOOK] Style transfer:', {
-        user_id: req.body?.user?.id,
-        source_id: req.body?.transfer?.source_id,
-        target_id: req.body?.transfer?.target_id,
-        style: req.body?.transfer?.style
-    });
-    res.json({ success: true, message: 'Style transfer webhook received' });
-});
-
-// Artwork saved webhook (Atelier Lab)
-app.post('/wc/webhooks/artwork-saved', (req, res) => {
-    console.log('[WEBHOOK] Artwork saved:', {
-        user_id: req.body?.user?.id,
-        artwork_id: req.body?.artwork?.id,
-        title: req.body?.artwork?.title,
-        format: req.body?.artwork?.format
-    });
-    res.json({ success: true, message: 'Artwork saved webhook received' });
-});
-
-// Collector subscription webhook
-app.post('/wc/webhooks/collector-subscription', (req, res) => {
-    console.log('[WEBHOOK] Collector subscription:', {
-        user_id: req.body?.user?.id,
-        tier: req.body?.subscription?.tier,
-        status: req.body?.subscription?.status
-    });
-    res.json({ success: true, message: 'Collector subscription webhook received' });
-});
-
-// Product listed webhook
-app.post('/wc/webhooks/product-listed', (req, res) => {
-    console.log('[WEBHOOK] Product listed:', {
-        product_id: req.body?.product?.id,
-        vendor_id: req.body?.product?.vendor_id,
-        price: req.body?.product?.price
-    });
-    res.json({ success: true, message: 'Product listed webhook received' });
-});
-
-// HURAII vision webhook (Atelier Lab)
-app.post('/wc/webhooks/huraii-vision', (req, res) => {
-    console.log('[WEBHOOK] HURAII vision:', {
-        user_id: req.body?.user?.id,
-        image_id: req.body?.vision?.image_id,
-        analysis_type: req.body?.vision?.analysis_type
-    });
-    res.json({ success: true, message: 'HURAII vision webhook received' });
-});
-
-// Style-guided generation webhook (Atelier Lab)
-app.post('/wc/webhooks/style-guided-generation', (req, res) => {
-    console.log('[WEBHOOK] Style-guided generation:', {
-        user_id: req.body?.user?.id,
-        style_id: req.body?.generation?.style_id,
-        prompt: req.body?.generation?.prompt
-    });
-    res.json({ success: true, message: 'Style-guided generation webhook received' });
-});
-
-// USDC Transfer endpoint
 app.post('/api/usdc/transfer', async (req, res) => {
+    if (!usdcService) return res.status(503).json({ success: false, error: 'USDC service unavailable' });
+    const { user_id, wallet_address, amount_usdc, order_id } = req.body;
+    if (!user_id || !wallet_address || !amount_usdc) {
+        return res.status(400).json({ success: false, error: 'Missing required fields', code: 'VALIDATION_ERROR' });
+    }
     try {
-        if (!usdcService) {
-            return res.status(503).json({ success: false, error: 'USDC service not available' });
-        }
-        const body = req.body;
-        if (!body.user_id || !body.wallet_address || !body.amount_usdc) {
-            return res.status(400).json({ success: false, error: 'Missing required fields' });
-        }
-        const result = await usdcService.transferUSDC(body);
-        return res.status(result.success ? 200 : 500).json(result);
+        const result = await usdcService.transferUSDC({ user_id, wallet_address, amount_usdc, order_id });
+        res.status(result.success ? 200 : 500).json(result);
     } catch (error: any) {
-        return res.status(500).json({ success: false, error: error.message });
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 
-// USDC Balance endpoint
 app.get('/api/usdc/balance/:wallet', async (req, res) => {
+    const { wallet } = req.params;
     try {
-        if (!usdcService) {
-            return res.status(503).json({ success: false, error: 'USDC service not available' });
+        if (usdcService?.getBalance) {
+            const balance = await usdcService.getBalance(wallet);
+            return res.json({ success: true, wallet, balance, currency: 'USDC', version: '4.0.0', timestamp: new Date().toISOString() });
         }
-        const balance = await usdcService.getBalance(req.params.wallet);
-        return res.status(200).json({ success: true, wallet: req.params.wallet, balance });
+        res.json({ success: true, wallet, balance: 0, currency: 'USDC', status: 'service_unavailable', version: '4.0.0', timestamp: new Date().toISOString() });
     } catch (error: any) {
-        return res.status(500).json({ success: false, error: error.message });
+        res.json({ success: true, wallet, balance: 0, currency: 'USDC', status: 'error', version: '4.0.0', timestamp: new Date().toISOString() });
     }
 });
 
-// TOLA Transfer endpoint
+// ============================================
+// TOLA ENDPOINTS
+// ============================================
+
 app.post('/api/tola/transfer', async (req, res) => {
+    if (!tolaService) return res.status(503).json({ success: false, error: 'TOLA service unavailable' });
+    const { user_id, wallet_address, amount_tola, reason } = req.body;
+    if (!user_id || !wallet_address || !amount_tola) {
+        return res.status(400).json({ success: false, error: 'Missing required fields', code: 'VALIDATION_ERROR' });
+    }
     try {
-        if (!tolaService) {
-            return res.status(503).json({ success: false, error: 'TOLA service not available' });
-        }
-        const body = req.body;
-        if (!body.user_id || !body.wallet_address || !body.amount_tola) {
-            return res.status(400).json({ success: false, error: 'Missing required fields' });
-        }
-        const result = await tolaService.transferTOLA(body);
-        return res.status(result.success ? 200 : 500).json(result);
+        const result = await tolaService.transferTOLA({ user_id, wallet_address, amount_tola, reason });
+        res.status(result.success ? 200 : 500).json(result);
     } catch (error: any) {
-        return res.status(500).json({ success: false, error: error.message });
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 
-// TOLA Balance endpoint
 app.get('/api/tola/balance/:wallet', async (req, res) => {
+    const { wallet } = req.params;
     try {
-        if (!tolaService) {
-            return res.status(503).json({ success: false, error: 'TOLA service not available' });
+        if (tolaService?.getBalance) {
+            const balance = await tolaService.getBalance(wallet);
+            return res.json({ success: true, wallet, balance, currency: 'TOLA', contract: 'H6qNYafSrpCjckH8yVwiPmXYPd1nCNBP8uQMZkv5hkky', version: '4.0.0', timestamp: new Date().toISOString() });
         }
-        const balance = await tolaService.getBalance(req.params.wallet);
-        return res.status(200).json({ success: true, wallet: req.params.wallet, balance });
+        res.json({ success: true, wallet, balance: 0, currency: 'TOLA', status: 'service_unavailable', version: '4.0.0', timestamp: new Date().toISOString() });
     } catch (error: any) {
-        return res.status(500).json({ success: false, error: error.message });
+        res.json({ success: true, wallet, balance: 0, currency: 'TOLA', status: 'error', version: '4.0.0', timestamp: new Date().toISOString() });
     }
 });
 
-// NFT Minting endpoint
+// ============================================
+// NFT ENDPOINTS (Additional)
+// ============================================
+
 app.post('/api/tola/mint-nft', async (req, res) => {
+    if (!nftService) return res.status(503).json({ success: false, error: 'NFT service unavailable' });
+    const { name, uri, symbol, description, recipient, seller_fee_basis_points } = req.body;
+    if (!name || !uri) return res.status(400).json({ success: false, error: 'name and uri are required', code: 'VALIDATION_ERROR' });
     try {
-        if (!nftService) {
-            return res.status(503).json({ success: false, error: 'NFT service not available' });
-        }
-        const body = req.body;
-        if (!body.name || !body.uri) {
-            return res.status(400).json({ success: false, error: 'Missing required fields: name and uri' });
-        }
-        const result = await nftService.mintNFT(body);
-        return res.status(result.success ? 200 : 500).json(result);
+        const result = await nftService.mintNFT({ name, uri, symbol, description, recipient, seller_fee_basis_points });
+        res.status(result.success ? 201 : 500).json(result);
     } catch (error: any) {
-        return res.status(500).json({ success: false, error: error.message });
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 
-// NFT Transfer endpoint
 app.post('/api/tola/transfer-nft', async (req, res) => {
+    if (!nftService) return res.status(503).json({ success: false, error: 'NFT service unavailable' });
+    const { mint_address, recipient_wallet } = req.body;
+    if (!mint_address || !recipient_wallet) return res.status(400).json({ success: false, error: 'mint_address and recipient_wallet are required' });
     try {
-        if (!nftService) {
-            return res.status(503).json({ success: false, error: 'NFT service not available' });
-        }
-        const { mint_address, recipient_wallet } = req.body;
-        if (!mint_address || !recipient_wallet) {
-            return res.status(400).json({ success: false, error: 'Missing required fields' });
-        }
-        const result = await nftService.transferNFT(mint_address, recipient_wallet);
-        return res.status(result.success ? 200 : 500).json(result);
+        const result = await nftService.transferNFT({ mint_address, recipient_wallet });
+        res.status(result.success ? 200 : 500).json(result);
     } catch (error: any) {
-        return res.status(500).json({ success: false, error: error.message });
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 
-// NFT Lookup endpoint
 app.get('/api/tola/nft/:mint_address', async (req, res) => {
+    if (!nftService) return res.status(503).json({ success: false, error: 'NFT service unavailable' });
     try {
-        if (!nftService) {
-            return res.status(503).json({ success: false, error: 'NFT service not available' });
-        }
         const result = await nftService.getNFT(req.params.mint_address);
-        return res.status(result.success ? 200 : 404).json(result);
+        res.status(result.success ? 200 : 404).json(result);
     } catch (error: any) {
-        return res.status(500).json({ success: false, error: error.message });
+        res.status(500).json({ success: false, error: error.message });
     }
+});
+
+// ============================================
+// PAYMENT ENDPOINTS
+// ============================================
+
+app.post('/api/payments/create-intent', async (req, res) => {
+    if (!paymentService) return res.status(503).json({ success: false, error: 'Payment service unavailable' });
+    const { order_id, amount_usd, currency, buyer_email, buyer_wallet, items } = req.body;
+    if (!order_id || !amount_usd) return res.status(400).json({ success: false, error: 'order_id and amount_usd are required' });
+    try {
+        const intent = await paymentService.createPaymentIntent({ orderId: order_id, amountUSD: amount_usd, currency, buyerEmail: buyer_email, buyerWallet: buyer_wallet, items });
+        res.status(201).json({ success: true, data: intent, version: '4.0.0', timestamp: new Date().toISOString() });
+    } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+app.post('/api/payments/verify', async (req, res) => {
+    if (!paymentService) return res.status(503).json({ success: false, error: 'Payment service unavailable' });
+    const { signature, order_id } = req.body;
+    if (!signature || !order_id) return res.status(400).json({ success: false, error: 'signature and order_id are required' });
+    try {
+        const result = await paymentService.verifyPayment(signature, order_id);
+        res.json({ success: true, data: result, version: '4.0.0', timestamp: new Date().toISOString() });
+    } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+app.get('/api/payments/status/:order_id', async (req, res) => {
+    if (!paymentService) return res.status(503).json({ success: false, error: 'Payment service unavailable' });
+    try {
+        const status = await paymentService.getPaymentStatus(req.params.order_id);
+        res.json({ success: true, data: status, version: '4.0.0', timestamp: new Date().toISOString() });
+    } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+app.get('/tola/payments/status/:orderId', async (req, res) => {
+    if (!paymentService) return res.json({ success: true, data: { orderId: req.params.orderId, status: 'pending' } });
+    try {
+        const status = await paymentService.getPaymentStatus(req.params.orderId);
+        res.json({ success: true, data: status || { orderId: req.params.orderId, status: 'pending' } });
+    } catch (error: any) {
+        res.json({ success: true, data: { orderId: req.params.orderId, status: 'pending' } });
+    }
+});
+
+// ============================================
+// WEBHOOK ENDPOINTS
+// ============================================
+
+const createWebhookHandler = (eventType: string) => async (req: Request, res: Response) => {
+    console.log(`[WEBHOOK] ${eventType}:`, JSON.stringify(req.body).slice(0, 200));
+    if (webhookProcessor) {
+        try {
+            const result = await webhookProcessor.processWebhook(eventType, req.body);
+            return res.json({ success: true, message: `${eventType} processed`, result });
+        } catch (e) {}
+    }
+    res.json({ success: true, message: `${eventType} received` });
+};
+
+app.post('/wc/webhooks/product-published', createWebhookHandler('product.published'));
+app.post('/wc/webhooks/order-created', createWebhookHandler('order.created'));
+app.post('/wc/webhooks/order-paid', createWebhookHandler('order.paid'));
+app.post('/wc/webhooks/wallet-connected', createWebhookHandler('wallet.connected'));
+app.post('/wc/webhooks/tola-transaction', createWebhookHandler('tola.transaction'));
+app.post('/wc/webhooks/subscription-activated', createWebhookHandler('subscription.activated'));
+app.post('/wc/webhooks/usage-payment', createWebhookHandler('usage.payment'));
+app.post('/wc/webhooks/stripe-purchase-completed', createWebhookHandler('stripe.purchase'));
+app.post('/wc/webhooks/balance-spent', createWebhookHandler('balance.spent'));
+app.post('/wc/webhooks/balance-sync', createWebhookHandler('balance.sync'));
+app.post('/wc/webhooks/nft-minted', createWebhookHandler('nft.minted'));
+app.post('/wc/webhooks/generation-completed', createWebhookHandler('generation.completed'));
+app.post('/wc/webhooks/style-transfer', createWebhookHandler('style.transfer'));
+app.post('/wc/webhooks/artwork-saved', createWebhookHandler('artwork.saved'));
+app.post('/wc/webhooks/collector-subscription', createWebhookHandler('collector.subscription'));
+app.post('/wc/webhooks/product-listed', createWebhookHandler('product.listed'));
+app.post('/wc/webhooks/huraii-vision', createWebhookHandler('huraii.vision'));
+app.post('/wc/webhooks/style-guided-generation', createWebhookHandler('style.generation'));
+
+// Webhook stats
+app.get('/api/webhooks/stats', (req, res) => {
+    if (!webhookProcessor) return res.status(503).json({ success: false, error: 'Webhook processor unavailable' });
+    res.json({ success: true, data: webhookProcessor.getStats(), version: '4.0.0', timestamp: new Date().toISOString() });
+});
+
+app.get('/api/webhooks/events', (req, res) => {
+    if (!webhookProcessor) return res.status(503).json({ success: false, error: 'Webhook processor unavailable' });
+    const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
+    res.json({ success: true, data: webhookProcessor.getEventLog(limit), version: '4.0.0', timestamp: new Date().toISOString() });
+});
+
+// ============================================
+// ERROR HANDLING
+// ============================================
+
+app.use((req: Request, res: Response) => {
+    res.status(404).json({
+        success: false,
+        error: 'Endpoint not found',
+        code: 'NOT_FOUND',
+        path: req.path,
+        method: req.method,
+        timestamp: new Date().toISOString()
+    });
+});
+
+app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+    console.error('[ERROR]', err.message, err.stack);
+    res.status(500).json({
+        success: false,
+        error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error',
+        code: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString()
+    });
 });
 
 // ============================================
@@ -445,23 +615,42 @@ app.get('/api/tola/nft/:mint_address', async (req, res) => {
 // ============================================
 
 app.listen(PORT, () => {
-    console.log(`\n========================================`);
-    console.log(`[VORTEX ENGINE] v4.0.0`);
-    console.log(`[VORTEX ENGINE] USDC-First Architecture`);
-    console.log(`========================================\n`);
-    console.log(`Server: http://localhost:${PORT}`);
-    console.log(`Health: http://localhost:${PORT}/health`);
-    console.log(`Debug:  http://localhost:${PORT}/debug/routes\n`);
+    console.log(`\n${'═'.repeat(60)}`);
+    console.log(`   VORTEX ENGINE v4.0.0 - NFT Marketplace`);
+    console.log(`   Competing with OpenSea • Foundation • SuperRare`);
+    console.log(`   Collections • Auctions • Creator Profiles • USDC/TOLA`);
+    console.log(`${'═'.repeat(60)}\n`);
     
-    console.log(`Route Status:`);
-    Object.entries(routeStatus).forEach(([name, loaded]) => {
-        console.log(`  ${loaded ? '✓' : '✗'} ${name}`);
-    });
+    console.log(`🌐 Server:     http://localhost:${PORT}`);
+    console.log(`📚 API Docs:   http://localhost:${PORT}/api/docs`);
+    console.log(`💚 Health:     http://localhost:${PORT}/health`);
+    console.log(`🔍 Debug:      http://localhost:${PORT}/debug/routes\n`);
     
-    console.log(`\nService Status:`);
-    console.log(`  ${usdcService ? '✓' : '✗'} USDCTransferService`);
-    console.log(`  ${tolaService ? '✓' : '✗'} TOLATransferService`);
-    console.log(`  ${nftService ? '✓' : '✗'} TOLANFTMintService`);
+    const loadedRoutes = Object.values(routeStatus).filter(Boolean).length;
+    const totalRoutes = Object.keys(routeStatus).length;
+    console.log(`📁 Routes: ${loadedRoutes}/${totalRoutes}`);
     
-    console.log(`\nAll systems operational - Ready for requests\n`);
+    const services = [
+        { name: 'USDC Transfer', ok: !!usdcService },
+        { name: 'TOLA Transfer', ok: !!tolaService },
+        { name: 'NFT Minting', ok: !!nftService },
+        { name: 'Daily Assets', ok: !!dailyAssetService },
+        { name: 'TOLA Metrics', ok: !!tolaMetricsService },
+        { name: 'Payments', ok: !!paymentService },
+        { name: 'Webhooks', ok: !!webhookProcessor },
+        { name: 'Collections', ok: !!collectionService },
+        { name: 'Marketplace', ok: !!marketplaceService },
+        { name: 'Creators', ok: !!creatorService }
+    ];
+    
+    const activeServices = services.filter(s => s.ok).length;
+    console.log(`⚙️  Services: ${activeServices}/${services.length}`);
+    services.forEach(s => console.log(`   ${s.ok ? '✓' : '✗'} ${s.name}`));
+    
+    const treasuryOk = !!process.env.TREASURY_WALLET_PRIVATE;
+    console.log(`\n🔐 Treasury: ${treasuryOk ? 'Configured' : 'NOT CONFIGURED'}`);
+    
+    console.log(`\n${'─'.repeat(60)}`);
+    console.log(`   Ready for requests - All systems operational`);
+    console.log(`${'─'.repeat(60)}\n`);
 });

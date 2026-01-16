@@ -625,5 +625,42 @@ router.get('/health', (req: Request, res: Response) => {
     });
 });
 
+/**
+ * GET /api/kv-cache/status
+ * Status endpoint (alias for health/stats combined)
+ * @version 4.0.0
+ */
+router.get('/status', (req: Request, res: Response) => {
+    const usageRatio = memoryStats.totalUsed / CONFIG.maxTotalMemory;
+    const hitRatio = memoryStats.cacheHits + memoryStats.cacheMisses > 0
+        ? (memoryStats.cacheHits / (memoryStats.cacheHits + memoryStats.cacheMisses)) * 100
+        : 100;
+    
+    res.json({
+        success: true,
+        status: usageRatio < CONFIG.criticalThreshold ? 'healthy' : 'degraded',
+        version: '4.0.0',
+        data: {
+            memory: {
+                used_mb: (memoryStats.totalUsed / (1024 * 1024)).toFixed(2),
+                max_mb: (CONFIG.maxTotalMemory / (1024 * 1024)).toFixed(2),
+                usage_percent: (usageRatio * 100).toFixed(1)
+            },
+            cache: {
+                active_sessions: kvCache.size,
+                hot_cache_size: hotCache.size,
+                hits: memoryStats.cacheHits,
+                misses: memoryStats.cacheMisses,
+                hit_ratio: hitRatio.toFixed(1),
+                evictions: memoryStats.evictions
+            },
+            users: {
+                active: memoryStats.userAllocations.size
+            }
+        },
+        timestamp: new Date().toISOString()
+    });
+});
+
 export default router;
 
