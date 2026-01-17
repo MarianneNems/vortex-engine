@@ -48,7 +48,14 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     next();
 });
 
-// Body parsing with size limits
+// Import raw body middleware for webhook signature verification
+import { rawBodyMiddleware } from './middleware/woo-hmac.middleware';
+
+// Capture raw body for webhook routes BEFORE JSON parsing
+app.use('/wc/webhooks', rawBodyMiddleware);
+app.use('/webhooks', rawBodyMiddleware);
+
+// Body parsing with size limits (for non-webhook routes)
 app.use(bodyParser.json({ limit: '10mb' }));
 app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -572,6 +579,53 @@ app.post('/wc/webhooks/collector-subscription', createWebhookHandler('collector.
 app.post('/wc/webhooks/product-listed', createWebhookHandler('product.listed'));
 app.post('/wc/webhooks/huraii-vision', createWebhookHandler('huraii.vision'));
 app.post('/wc/webhooks/style-guided-generation', createWebhookHandler('style.generation'));
+
+// ============================================
+// MISSING ENDPOINTS (Fix 404s)
+// ============================================
+
+// GPU Usage - WordPress polls this but it should use RunPod directly
+app.get('/api/gpu/usage', (req, res) => {
+    res.json({
+        success: true,
+        message: 'GPU usage should be checked via RunPod directly',
+        gpu: {
+            available: true,
+            provider: 'runpod',
+            endpoint: process.env.RUNPOD_BASE_URL || 'https://x0ctne8qjra54v-7860.proxy.runpod.net',
+            note: 'This endpoint is deprecated. Use RunPod API for GPU status.'
+        },
+        version: '4.0.0',
+        timestamp: new Date().toISOString()
+    });
+});
+
+// Swap fees endpoint
+app.get('/api/swap/fees', (req, res) => {
+    res.json({
+        success: true,
+        fees: {
+            swap_fee_usdc: 10.0,           // Total fee per swap
+            swap_fee_per_user_usdc: 5.0,   // Per user when split
+            platform_fee_percent: 1.0,      // Platform cut of swap value
+            payment_options: ['split', 'full']
+        },
+        description: 'Swap fee is 10 USDC total, split 5 USDC each by default, or one party can pay full 10 USDC',
+        version: '4.0.0',
+        timestamp: new Date().toISOString()
+    });
+});
+
+// USDC Transaction webhook
+app.post('/wc/webhooks/usdc-transaction', (req, res) => {
+    console.log('[WEBHOOK] usdc-transaction:', JSON.stringify(req.body).slice(0, 200));
+    if (webhookProcessor) {
+        try {
+            webhookProcessor.processWebhook('usdc.transaction', req.body);
+        } catch (e) {}
+    }
+    res.json({ success: true, message: 'USDC transaction received' });
+});
 
 // Webhook stats
 app.get('/api/webhooks/stats', (req, res) => {
