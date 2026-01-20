@@ -1,9 +1,10 @@
 # Vortex Engine - USDC Payment System + TOLA Incentives
 
-**Version:** 4.1.1  
+**Version:** 4.0.0  
 **Status:** Production Ready  
 **Architecture:** USDC-First with Hidden TOLA Rewards  
-**Platform Wallet:** EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz (User #52)
+**Platform Wallet:** EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz (User #52)  
+**Last Sync:** January 20, 2026 - Central Config Integration
 
 ---
 
