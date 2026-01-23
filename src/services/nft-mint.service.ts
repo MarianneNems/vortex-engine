@@ -15,6 +15,10 @@ import { logger } from '../utils/logger';
 const RPC_URL = process.env.SOLANA_RPC_URL || process.env.RPC_URL || clusterApiUrl('mainnet-beta');
 const PLATFORM_TREASURY = process.env.PLATFORM_TREASURY_PUBKEY || process.env.TREASURY_WALLET_PUBLIC || '';
 
+// IMMUTABLE ROYALTY CONFIGURATION - DO NOT MODIFY
+const IMMUTABLE_ROYALTY_BPS = 500;  // 5% - LOCKED
+const PLATFORM_ROYALTY_WALLET = process.env.PLATFORM_COMMISSION_WALLET || '6VPLAVjote7Bqo96CbJ5kfrotkdU9BF3ACeqsJtcvH8g';
+
 interface ProductNFTData {
     productId: number;
     name: string;
@@ -137,7 +141,7 @@ export class NFTMintService {
                     ],
                     creators: [
                         {
-                            address: PLATFORM_TREASURY,
+                            address: PLATFORM_ROYALTY_WALLET, // IMMUTABLE royalty recipient
                             share: 100
                         }
                     ]
@@ -150,13 +154,22 @@ export class NFTMintService {
             
             logger.info(`[NFT] Metadata uploaded: ${metadataUri}`);
             
-            // Mint NFT
+            // Mint NFT with IMMUTABLE 5% royalty
             const { nft } = await this.metaplex.nfts().create({
                 uri: metadataUri,
                 name: data.name.substring(0, 32), // Solana name limit
-                sellerFeeBasisPoints: 0,
-                symbol: 'VORTEX'
+                sellerFeeBasisPoints: IMMUTABLE_ROYALTY_BPS, // 5% IMMUTABLE royalty
+                symbol: 'VORTEX',
+                creators: [
+                    {
+                        address: new PublicKey(PLATFORM_ROYALTY_WALLET),
+                        share: 100,
+                        authority: this.metaplex.identity()
+                    }
+                ]
             });
+            
+            logger.info(`[NFT] Royalty: ${IMMUTABLE_ROYALTY_BPS} BPS (5%) to ${PLATFORM_ROYALTY_WALLET}`);
             
             const mintAddress = nft.address.toString();
             const signature = nft.mint.address.toString(); // Transaction signature

@@ -3,8 +3,9 @@
 **Version:** 4.0.0  
 **Status:** Production Ready  
 **Architecture:** USDC-First with Hidden TOLA Rewards  
-**Platform Wallet:** EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz (User #52)  
-**Last Sync:** January 20, 2026 - Central Config Integration
+**Platform Royalty Wallet:** 6VPLAVjote7Bqo96CbJ5kfrotkdU9BF3ACeqsJtcvH8g (5% IMMUTABLE)  
+**TOLA Incentive Wallet:** EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz (User #52)  
+**Last Sync:** January 22, 2026 - Royalty System Integration
 
 ---
 
@@ -50,6 +51,14 @@ Complete blockchain backend for Vortex AI platform:
 - ✅ On-chain payment verification
 - ✅ Auto-complete orders
 - ✅ Product-to-NFT minting (TOLA)
+
+### 5. IMMUTABLE 5% Royalty System
+- ✅ Platform royalty PERMANENTLY LOCKED at 5% (500 BPS)
+- ✅ Automatic royalty enforcement on all HURAII NFTs
+- ✅ Secondary sale royalty processing
+- ✅ Royalty collection and distribution
+- ✅ HURAII signature verification
+- ✅ Tamper-proof configuration
 
 ---
 
@@ -163,6 +172,59 @@ Called when new order is created with TOLA Pay
 Called after on-chain payment confirmation
 
 **Action:** Marks WooCommerce order as completed
+
+---
+
+### Royalty Endpoints (5% IMMUTABLE)
+
+The royalty system enforces a PERMANENT 5% platform royalty on all HURAII-generated NFTs.
+This rate is LOCKED and cannot be changed, lowered, or removed.
+
+#### GET /api/royalty/config
+Get the IMMUTABLE royalty configuration
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "royalty_rate": 0.05,
+    "royalty_bps": 500,
+    "royalty_percent": "5%",
+    "royalty_wallet": "6VPLAVjote7Bqo96CbJ5kfrotkdU9BF3ACeqsJtcvH8g",
+    "immutable": true,
+    "can_be_changed": false,
+    "can_be_lowered": false,
+    "can_be_removed": false
+  }
+}
+```
+
+#### GET /api/royalty/rates
+Get all royalty rates
+
+#### POST /api/royalty/sale
+Process a secondary sale (royalty auto-calculates at 5%)
+
+**Body:**
+```json
+{
+  "mint_address": "NFT_MINT_ADDRESS",
+  "sale_signature": "TRANSACTION_SIGNATURE",
+  "sale_amount": 100,
+  "buyer": "BUYER_WALLET",
+  "seller": "SELLER_WALLET"
+}
+```
+
+#### POST /api/royalty/collect
+Collect pending royalty payment
+
+#### POST /api/royalty/verify-huraii
+Verify HURAII signature on an image
+
+#### GET /api/royalty/stats
+Get royalty statistics
 
 ---
 

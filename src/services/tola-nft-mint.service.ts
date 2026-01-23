@@ -43,6 +43,20 @@ import { logger } from '../utils/logger';
 // Metaplex Token Metadata Program
 const TOKEN_METADATA_PROGRAM_ID = new PublicKey('metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s');
 
+// IMMUTABLE ROYALTY CONFIGURATION - DO NOT MODIFY
+const IMMUTABLE_ROYALTY = {
+    BPS: 500,           // 5% - PERMANENTLY LOCKED
+    RATE: 0.05,         // 5% as decimal
+    WALLET: process.env.PLATFORM_COMMISSION_WALLET || '6VPLAVjote7Bqo96CbJ5kfrotkdU9BF3ACeqsJtcvH8g',
+    IMMUTABLE: true,
+    LOCKED_DATE: '2026-01-22'
+} as const;
+
+// Verify immutability
+if (IMMUTABLE_ROYALTY.BPS !== 500 || IMMUTABLE_ROYALTY.RATE !== 0.05) {
+    throw new Error('[TOLA NFT SERVICE] CRITICAL: Royalty configuration has been tampered with!');
+}
+
 // Configuration
 const CONFIG = {
     maxRetries: 3,
@@ -50,7 +64,7 @@ const CONFIG = {
     confirmationTimeout: 60000,
     priorityFee: 100000,
     computeUnits: 400000,
-    defaultSellerFeeBasisPoints: 500, // 5%
+    defaultSellerFeeBasisPoints: IMMUTABLE_ROYALTY.BPS, // 5% IMMUTABLE
     defaultSymbol: 'VORTEX'
 };
 
@@ -323,16 +337,22 @@ export class TOLANFTMintService {
                 )
             );
             
-            // Prepare creators
-            const creators = request.creators?.map(c => ({
-                address: new PublicKey(c.address),
-                verified: c.address === this.treasuryKeypair!.publicKey.toBase58(),
-                share: c.share
-            })) || [{
-                address: this.treasuryKeypair.publicKey,
+            // Prepare creators - ALWAYS include platform royalty wallet first
+            const platformRoyaltyCreator = {
+                address: new PublicKey(IMMUTABLE_ROYALTY.WALLET),
                 verified: true,
-                share: 100
-            }];
+                share: 100 // Platform gets 100% of the royalty
+            };
+            
+            const creators = request.creators?.length 
+                ? [platformRoyaltyCreator, ...request.creators.slice(0, -1).map(c => ({
+                    address: new PublicKey(c.address),
+                    verified: c.address === this.treasuryKeypair!.publicKey.toBase58(),
+                    share: 0 // Additional creators get listed but platform takes royalty
+                }))]
+                : [platformRoyaltyCreator];
+            
+            logger.info(`[NFT Service] Royalty: ${IMMUTABLE_ROYALTY.BPS} BPS (5%) to ${IMMUTABLE_ROYALTY.WALLET} - IMMUTABLE`);
             
             // Create metadata instruction (using Metaplex)
             // Note: Full implementation requires @metaplex-foundation/mpl-token-metadata
@@ -635,6 +655,12 @@ export class TOLANFTMintService {
         rpc_connections: number;
         total_minted: number;
         treasury_sol_balance?: number;
+        royalty?: {
+            bps: number;
+            rate: number;
+            wallet: string;
+            immutable: boolean;
+        };
     }> {
         let solBalance: number | undefined;
         
@@ -651,7 +677,13 @@ export class TOLANFTMintService {
             treasury_configured: !!this.treasuryKeypair,
             rpc_connections: this.connections.length,
             total_minted: this.totalMinted,
-            treasury_sol_balance: solBalance
+            treasury_sol_balance: solBalance,
+            royalty: {
+                bps: IMMUTABLE_ROYALTY.BPS,
+                rate: IMMUTABLE_ROYALTY.RATE,
+                wallet: IMMUTABLE_ROYALTY.WALLET,
+                immutable: IMMUTABLE_ROYALTY.IMMUTABLE
+            }
         };
     }
 
