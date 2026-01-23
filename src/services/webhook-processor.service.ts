@@ -34,7 +34,10 @@ export type WebhookEventType =
     | 'collector.subscription'
     | 'product.listed'
     | 'huraii.vision'
-    | 'style.generation';
+    | 'style.generation'
+    | 'royalty.sale'
+    | 'nft.royalty'
+    | 'usdc.transaction';
 
 export interface WebhookEvent {
     id: string;
@@ -67,6 +70,7 @@ export class WebhookProcessorService {
         tola?: any;
         nft?: any;
         payment?: any;
+        royalty?: any;
     } = {};
 
     constructor() {
@@ -82,6 +86,7 @@ export class WebhookProcessorService {
         tola?: any;
         nft?: any;
         payment?: any;
+        royalty?: any;
     }): void {
         this.services = services;
         logger.info('[Webhook Processor] Services configured');
@@ -238,6 +243,79 @@ export class WebhookProcessorService {
                 success: true,
                 action_taken: 'logged',
                 data: { generation_id: generation?.id }
+            };
+        });
+
+        // Royalty sale - process 5% IMMUTABLE royalty
+        this.handlers.set('royalty.sale', async (event) => {
+            const { mint_address, sale_signature, sale_amount, buyer, seller } = event.data;
+            logger.info(`[Webhook] Royalty sale: ${mint_address}, amount: ${sale_amount}`);
+            
+            if (mint_address && sale_amount && this.services.royalty) {
+                try {
+                    const payment = await this.services.royalty.processSecondarySale(
+                        mint_address,
+                        sale_signature,
+                        parseFloat(sale_amount),
+                        buyer,
+                        seller
+                    );
+                    
+                    return {
+                        success: true,
+                        action_taken: 'royalty_recorded',
+                        data: { 
+                            payment_id: payment.id,
+                            royalty_amount: payment.royalty_amount,
+                            royalty_wallet: payment.royalty_wallet
+                        }
+                    };
+                } catch (e: any) {
+                    logger.error('[Webhook] Royalty processing failed:', e.message);
+                    return { success: false, error: e.message };
+                }
+            }
+            
+            return { success: true, action_taken: 'logged' };
+        });
+
+        // NFT royalty webhook - secondary sale royalty
+        this.handlers.set('nft.royalty', async (event) => {
+            const { nft, sale, royalty } = event.data;
+            logger.info(`[Webhook] NFT royalty: ${nft?.mint}, royalty: ${royalty?.amount}`);
+            
+            if (this.services.royalty && nft?.mint && sale?.amount) {
+                try {
+                    const payment = await this.services.royalty.processSecondarySale(
+                        nft.mint,
+                        sale.signature,
+                        parseFloat(sale.amount),
+                        sale.buyer,
+                        sale.seller
+                    );
+                    
+                    return {
+                        success: true,
+                        action_taken: 'nft_royalty_processed',
+                        data: payment
+                    };
+                } catch (e: any) {
+                    return { success: false, error: e.message };
+                }
+            }
+            
+            return { success: true, action_taken: 'logged' };
+        });
+
+        // USDC transaction webhook
+        this.handlers.set('usdc.transaction', async (event) => {
+            const { user, transaction, amount } = event.data;
+            logger.info(`[Webhook] USDC transaction: user ${user?.id}, amount: ${amount}`);
+            
+            return {
+                success: true,
+                action_taken: 'logged',
+                data: { amount, signature: transaction?.signature }
             };
         });
 

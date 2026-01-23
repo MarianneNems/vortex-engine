@@ -1,8 +1,8 @@
 # Vortex Engine Production Configuration v4.0.0
 # =============================================
-# INSTRUCTIONS: Rename this file to .env
+# INSTRUCTIONS: Rename this file to .env on your server
 # CRITICAL: Keep this file secure and never commit to git
-# Generated: January 9, 2026
+# Last Updated: January 22, 2026
 
 PORT=3000
 NODE_ENV=production
@@ -13,43 +13,77 @@ NODE_ENV=production
 
 # Use Helius or QuickNode for reliable RPC (avoid rate limits)
 # Get free Helius key at: https://helius.xyz
-# Replace YOUR_HELIUS_API_KEY with your actual key
-SOLANA_RPC_URL=https://mainnet.helius-rpc.com/?api-key=661daee0-4ebb-4bbd-83be-45b132d734d0
+SOLANA_RPC_URL=https://mainnet.helius-rpc.com/?api-key=YOUR_HELIUS_API_KEY
 SOLANA_NETWORK=mainnet-beta
 
 # ============================================
 # WALLET STRUCTURE (CRITICAL - KEEP SECURE)
 # ============================================
-# Each wallet has a specific purpose:
+# 
+# WALLET PURPOSE GUIDE:
+# ====================
+# 
+# 1. PLATFORM_COMMISSION_WALLET - THE MAIN ROYALTY WALLET
+#    - Receives 5% IMMUTABLE royalty on ALL HURAII-generated NFTs
+#    - Receives 15% marketplace commission on product sales
+#    - THIS WALLET CANNOT BE CHANGED
 #
-# 1. PLATFORM_COMMISSION_WALLET - Receives 15% marketplace commissions
-# 2. TOLA_INCENTIVE_WALLET - User #52's wallet for TOLA incentive distribution
-# 3. MARKET_TREASURY_WALLET - Market operations and liquidity
-# 4. CONTRACT_OWNER_WALLET - 5% smart contract royalties on NFTs
-# 5. WALLET_MANAGEMENT_WALLET - 0.5% wallet management fees
-# 6. OPERATOR_MINTER_WALLET - NFT minting operations (max 15%)
+# 2. TOLA_INCENTIVE_WALLET - User rewards distribution
+#    - Pays users TOLA rewards for platform activity
+#    - Subscription rewards, generation rewards, referrals
+#
+# 3. MARKET_TREASURY_WALLET - Operations and liquidity
+#    - Market operations and USDC disbursements
+#    - Platform operational funds
+#
+# 4. CONTRACT_OWNER_WALLET - Legacy on-chain royalty
+#    - Used in Metaplex NFT creator field
+#    - For on-chain smart contract enforcement
+#
+# 5. WALLET_MANAGEMENT_WALLET - Transfer fees
+#    - 1% fee on wallet management operations
+#
+# 6. OPERATOR_MINTER_WALLET - NFT operations
+#    - NFT minting and operator functions
 
-# Platform Commission Wallet (15% marketplace fees from WooCommerce/WCFM)
+# PLATFORM COMMISSION WALLET - 5% IMMUTABLE ROYALTY + 15% MARKETPLACE
+# THIS IS THE MAIN ROYALTY WALLET - DO NOT CHANGE
 PLATFORM_COMMISSION_WALLET=6VPLAVjote7Bqo96CbJ5kfrotkdU9BF3ACeqsJtcvH8g
 
-# TOLA Incentive Wallet (User #52) - Distributes TOLA rewards to users
+# TOLA INCENTIVE WALLET - User rewards distribution
 TOLA_INCENTIVE_WALLET=EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz
 
-# Market Treasury - Operations and USDC disbursements
+# MARKET TREASURY - Operations and USDC disbursements
 MARKET_TREASURY_WALLET=GYrv6jREdH2Rajd93AtxCghotazKXt6qwxNZtyL6ssp2
 
-# Contract Owner Wallet - 5% royalty on all NFT mints (enforced by smart contract)
+# CONTRACT OWNER WALLET - On-chain royalty (Metaplex creator field)
 CONTRACT_OWNER_WALLET=DrdrYs68TFgkiNP2y6mQJD8c3Q8DbRPRyjsYvL5oCQ6u
 
-# Wallet Management Fee Wallet - 0.5% fee on TOLA purchases via Stripe
+# WALLET MANAGEMENT FEE WALLET - 1% management fee
 WALLET_MANAGEMENT_WALLET=3c6v1xUqkve8kLLyMQkVraqRGCWo4UmY7QLa185nR9Fx
 
-# Operator/Minter Wallet - Creator + Seller royalties (max 15%)
+# OPERATOR/MINTER WALLET - NFT minting operations
 OPERATOR_MINTER_WALLET=FPiwDDtdU2G5y3pi7TX3eWAzZJoQ2mPecv42iBz9xUB3
 
-# Treasury Private Key (for automated distributions) - NEVER share this
-# REPLACE THIS WITH YOUR ACTUAL PRIVATE KEY:
+# TREASURY PRIVATE KEY (for automated distributions)
+# CRITICAL: Never share this key! Generate a new one for production.
+# REPLACE THIS WITH YOUR ACTUAL BASE58 PRIVATE KEY:
 TREASURY_WALLET_PRIVATE=YOUR_BASE58_PRIVATE_KEY_HERE
+
+# ============================================
+# ROYALTY CONFIGURATION (IMMUTABLE)
+# ============================================
+# WARNING: These values are LOCKED and enforced by the system
+
+# Platform royalty - CANNOT BE CHANGED
+PLATFORM_ROYALTY_RATE=0.05
+PLATFORM_ROYALTY_BPS=500
+
+# NFT minting royalty basis points
+NFT_ROYALTY_BPS=500
+
+# Marketplace fee percentage
+MARKETPLACE_FEE_PERCENT=15
 
 # ============================================
 # TOKEN MINT ADDRESSES (Solana Mainnet)
@@ -68,9 +102,6 @@ TOLA_MINT=H6qNYafSrpCjckH8yVwiPmXYPd1nCNBP8uQMZkv5hkky
 # Bundlr/Arweave for metadata storage
 BUNDLR_ADDRESS=https://node1.bundlr.network
 
-# Platform royalty basis points (500 = 5%)
-NFT_ROYALTY_BPS=500
-
 # Legacy compatibility - uses Market Treasury
 PLATFORM_TREASURY_PUBKEY=GYrv6jREdH2Rajd93AtxCghotazKXt6qwxNZtyL6ssp2
 
@@ -82,26 +113,60 @@ WP_BASE_URL=https://vortexartec.com
 WP_AJAX_URL=https://vortexartec.com/wp-admin/admin-ajax.php
 WP_API_URL=https://vortexartec.com/wp-json
 
-# WooCommerce API credentials (generate in WooCommerce > Settings > Advanced > REST API)
-# REPLACE THESE WITH YOUR ACTUAL CREDENTIALS:
+# WooCommerce API credentials
+# Generate in WooCommerce > Settings > Advanced > REST API
 WOO_CONSUMER_KEY=ck_your_consumer_key_here
 WOO_CONSUMER_SECRET=cs_your_consumer_secret_here
+
+# ============================================
+# RUNPOD AI CONFIGURATION
+# ============================================
+
+# RunPod A1111 API (Direct port 17860)
+RUNPOD_BASE_URL=https://x0ctne8qjra54v-17860.proxy.runpod.net
+RUNPOD_API_KEY=rpa_YOUR_RUNPOD_API_KEY
+RUNPOD_AUTH_REQUIRED=false
+
+# ============================================
+# HUGGING FACE (Free Fallback)
+# ============================================
+
+# Get free token at: https://huggingface.co/settings/tokens
+HUGGINGFACE_TOKEN=hf_your_token_here
 
 # ============================================
 # SECURITY
 # ============================================
 
-# JWT secret for API authentication (generate a random 64-char string)
+# JWT secret for API authentication
+# Generate a random 64-character string
 JWT_SECRET=generate_a_long_random_string_here_at_least_64_characters_long
 
-# Webhook signature secret
+# Webhook signature secret for WooCommerce
 WEBHOOK_SECRET=another_random_secret_for_webhook_validation_32_chars
 
+# API key for WordPress integration
+VORTEX_API_KEY=your_vortex_api_key_here
+
 # ============================================
-# RAILWAY DEPLOYMENT (if using Railway)
+# RAILWAY DEPLOYMENT
 # ============================================
 
 # Railway automatically sets these:
 # RAILWAY_ENVIRONMENT=production
 # RAILWAY_PUBLIC_DOMAIN=vortex-engine-production.up.railway.app
 
+# ============================================
+# LOGGING
+# ============================================
+
+LOG_LEVEL=info
+LOG_FORMAT=json
+
+# ============================================
+# RATE LIMITING
+# ============================================
+
+RATE_LIMIT_WINDOW_MS=60000
+RATE_LIMIT_MAX_REQUESTS=100
+WEBHOOK_RATE_LIMIT_MAX=500

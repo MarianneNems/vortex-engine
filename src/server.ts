@@ -178,6 +178,7 @@ let webhookProcessor: any = null;
 let collectionService: any = null;
 let marketplaceService: any = null;
 let creatorService: any = null;
+let royaltyService: any = null;
 
 // Initialize services
 try {
@@ -231,6 +232,7 @@ try {
 try {
     const { WebhookProcessorService } = require('./services/webhook-processor.service');
     webhookProcessor = new WebhookProcessorService();
+    // Note: royaltyService will be added after it's initialized
     webhookProcessor.setServices({ usdc: usdcService, tola: tolaService, nft: nftService, payment: paymentService });
     console.log('[SERVICES] ✓ WebhookProcessor');
 } catch (e: any) {
@@ -261,6 +263,25 @@ try {
     console.error('[SERVICES] ✗ CreatorService:', e.message);
 }
 
+try {
+    const { getRoyaltyService } = require('./services/royalty.service');
+    royaltyService = getRoyaltyService();
+    console.log('[SERVICES] ✓ RoyaltyService (5% IMMUTABLE)');
+    
+    // Connect royalty service to webhook processor
+    if (webhookProcessor) {
+        webhookProcessor.setServices({ 
+            usdc: usdcService, 
+            tola: tolaService, 
+            nft: nftService, 
+            payment: paymentService,
+            royalty: royaltyService 
+        });
+    }
+} catch (e: any) {
+    console.error('[SERVICES] ✗ RoyaltyService:', e.message);
+}
+
 // ============================================
 // HEALTH & STATUS ENDPOINTS
 // ============================================
@@ -278,7 +299,8 @@ app.get('/health', async (req, res) => {
         webhooks: !!webhookProcessor,
         collections: collectionService?.isReady?.() ?? !!collectionService,
         marketplace: marketplaceService?.isReady?.() ?? !!marketplaceService,
-        creators: creatorService?.isReady?.() ?? !!creatorService
+        creators: creatorService?.isReady?.() ?? !!creatorService,
+        royalty: royaltyService?.isReady?.() ?? !!royaltyService
     };
     
     const healthy = Object.values(serviceStatus).filter(Boolean).length;
@@ -346,6 +368,12 @@ app.get('/health/payments', async (req, res) => {
     if (!paymentService) return res.status(503).json({ success: false, error: 'Service unavailable' });
     const health = paymentService.getHealth?.() || { healthy: true };
     res.json({ success: true, service: 'payments', ...health });
+});
+
+app.get('/health/royalty', async (req, res) => {
+    if (!royaltyService) return res.status(503).json({ success: false, error: 'Service unavailable' });
+    const health = await royaltyService.getHealth?.() || { healthy: true, immutable: true };
+    res.json({ success: true, service: 'royalty', ...health });
 });
 
 // Debug routes
@@ -579,6 +607,29 @@ app.post('/wc/webhooks/collector-subscription', createWebhookHandler('collector.
 app.post('/wc/webhooks/product-listed', createWebhookHandler('product.listed'));
 app.post('/wc/webhooks/huraii-vision', createWebhookHandler('huraii.vision'));
 app.post('/wc/webhooks/style-guided-generation', createWebhookHandler('style.generation'));
+app.post('/wc/webhooks/royalty-sale', createWebhookHandler('royalty.sale'));
+app.post('/wc/webhooks/nft-royalty', createWebhookHandler('nft.royalty'));
+
+// Dedicated royalty webhook endpoint
+app.post('/api/royalty/webhook/sale', async (req, res) => {
+    console.log('[WEBHOOK] royalty.sale:', JSON.stringify(req.body).slice(0, 200));
+    if (royaltyService && req.body.type === 'NFT_SALE') {
+        try {
+            const { nft, signature, amount, buyer, seller } = req.body;
+            const payment = await royaltyService.processSecondarySale(
+                nft?.mint || '',
+                signature || '',
+                parseFloat(amount || '0'),
+                buyer,
+                seller
+            );
+            return res.json({ success: true, message: 'Sale processed', data: payment });
+        } catch (e: any) {
+            console.error('[ROYALTY WEBHOOK] Error:', e.message);
+        }
+    }
+    res.json({ success: true, message: 'royalty webhook received' });
+});
 
 // ============================================
 // MISSING ENDPOINTS (Fix 404s)
@@ -694,7 +745,8 @@ app.listen(PORT, () => {
         { name: 'Webhooks', ok: !!webhookProcessor },
         { name: 'Collections', ok: !!collectionService },
         { name: 'Marketplace', ok: !!marketplaceService },
-        { name: 'Creators', ok: !!creatorService }
+        { name: 'Creators', ok: !!creatorService },
+        { name: 'Royalty (5% IMMUTABLE)', ok: !!royaltyService }
     ];
     
     const activeServices = services.filter(s => s.ok).length;
@@ -703,6 +755,11 @@ app.listen(PORT, () => {
     
     const treasuryOk = !!process.env.TREASURY_WALLET_PRIVATE;
     console.log(`\n🔐 Treasury: ${treasuryOk ? 'Configured' : 'NOT CONFIGURED'}`);
+    
+    // Royalty configuration display
+    console.log(`\n💎 Royalty Configuration (IMMUTABLE):`);
+    console.log(`   Rate: 5% (500 BPS) - LOCKED`);
+    console.log(`   Wallet: ${process.env.PLATFORM_COMMISSION_WALLET || '6VPLAVjote7Bqo96CbJ5kfrotkdU9BF3ACeqsJtcvH8g'}`);
     
     console.log(`\n${'─'.repeat(60)}`);
     console.log(`   Ready for requests - All systems operational`);
