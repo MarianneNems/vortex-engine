@@ -53,21 +53,30 @@ Version: 4.1.1
 | Creator Royalty | 5% (on-chain) |
 | Marketplace | 15% |
 
-### TOLA Incentive Rates
+### TOLA Incentive Rates (v4.0.0)
+
+#### Welcome Bonuses (One-Time)
+| Tier Level | TOLA Amount |
+|------------|-------------|
+| Founding Pro Artist (Pro Artist, Studio, Maverick, Enterprise) | 100,000 |
+| Creator Tier (Standard, Essential, Premium, Collector) | 25,000 |
+
+#### Activity Rewards
 | Action | TOLA Amount |
 |--------|-------------|
-| Subscription Starter | 5.00 |
-| Subscription Pro | 12.00 |
-| Subscription Elite | 25.00 |
-| Image Generation | 0.50 |
-| Daily Login | 0.10 |
-| Referral | 3.00 |
-| Tutorial Complete | 1.00 |
-| Milestone 10 Images | 2.00 |
-| Milestone 100 Images | 10.00 |
-| First Purchase | 2.00 |
-| Marketplace Sale | 1.00 |
-| Agent Interaction | 10.00 |
+| Image Generation | 10 |
+| Artwork Upload | 10 |
+| Token Swap | 10 |
+| Marketplace Sale | 10,000 |
+| Referral Bonus | 1,000 |
+| Daily Login | 10 |
+
+#### Hold Period
+All earned TOLA is held until platform reaches 1,000 registered users.
+After milestone: TOLA usable for any platform service (subscriptions, GPU hours, etc.)
+
+#### Top Artist Recognition
+Highest-ranking artists invited to exhibit at Miami Art Week / Art Basel Miami Beach.
 
 ### TOLA Costs
 | Action | TOLA Amount |
