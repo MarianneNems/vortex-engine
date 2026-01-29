@@ -58,8 +58,8 @@ Version: 4.1.1
 #### Welcome Bonuses (One-Time)
 | Tier Level | TOLA Amount |
 |------------|-------------|
-| Founding Pro Artist (Pro Artist, Studio, Maverick, Enterprise) | 100,000 |
-| Creator Tier (Standard, Essential, Premium, Collector) | 25,000 |
+| Founding Pro Artist (Pro Artist, Studio, Maverick, Enterprise) | 30,000 |
+| Creator Tier (Standard, Essential, Premium, Collector) | 10,000 |
 
 #### Activity Rewards
 | Action | TOLA Amount |
@@ -67,7 +67,7 @@ Version: 4.1.1
 | Image Generation | 10 |
 | Artwork Upload | 10 |
 | Token Swap | 10 |
-| Marketplace Sale | 10,000 |
+| Marketplace Sale | 7,000 |
 | Referral Bonus | 1,000 |
 | Daily Login | 10 |
 
