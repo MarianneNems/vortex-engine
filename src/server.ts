@@ -27,15 +27,41 @@ const PORT = process.env.PORT || 3000;
 // SECURITY & MIDDLEWARE
 // ============================================
 
-// CORS configuration
+// CORS configuration - Include production and staging domains
+const DEFAULT_ALLOWED_ORIGINS = [
+    'https://vortexartec.com',
+    'https://www.vortexartec.com',
+    'https://wordpress-1516791-6161016.cloudwaysapps.com'
+];
+
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+    ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+    : DEFAULT_ALLOWED_ORIGINS;
+
 const corsOptions = {
-    origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
+    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+        // Allow requests with no origin (like mobile apps, curl, Postman)
+        if (!origin) {
+            return callback(null, true);
+        }
+        // Check if origin is in allowed list
+        if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
+            return callback(null, true);
+        }
+        // Log rejected origins for debugging
+        console.log(`[CORS] Rejected origin: ${origin}`);
+        callback(new Error('Not allowed by CORS'));
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'x-wp-user-id'],
     credentials: true,
-    maxAge: 86400
+    maxAge: 86400,
+    preflightContinue: false,
+    optionsSuccessStatus: 204
 };
 
+// Handle preflight OPTIONS requests explicitly
+app.options('*', cors(corsOptions));
 app.use(cors(corsOptions));
 
 // Security headers
