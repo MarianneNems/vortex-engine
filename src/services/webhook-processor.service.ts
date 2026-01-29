@@ -125,31 +125,30 @@ export class WebhookProcessorService {
         });
 
         // Order paid - process payment and distribute TOLA rewards
+        // VORTEX AI Engine v4.0.0 - Marketplace Sale: 10,000 TOLA
         this.handlers.set('order.paid', async (event) => {
             const { order, payment } = event.data;
             logger.info(`[Webhook] Order paid: ${order?.id}, amount: ${payment?.amount}`);
             
-            // Distribute TOLA incentive if configured
+            // Distribute TOLA incentive for marketplace sale - 10,000 TOLA per sale
             if (order?.customer?.wallet_address && this.services.tola) {
-                const tolaReward = (payment?.amount || 0) * 0.01; // 1% cashback in TOLA
+                const tolaReward = 10000; // Fixed 10,000 TOLA per marketplace sale
                 
-                if (tolaReward > 0) {
-                    try {
-                        const result = await this.services.tola.transferTOLA({
-                            user_id: order.customer.id,
-                            wallet_address: order.customer.wallet_address,
-                            amount_tola: tolaReward,
-                            reason: 'reward'
-                        });
-                        
-                        return {
-                            success: true,
-                            action_taken: 'tola_reward_sent',
-                            data: { amount: tolaReward, signature: result.signature }
-                        };
-                    } catch (e: any) {
-                        logger.error('[Webhook] TOLA reward failed:', e.message);
-                    }
+                try {
+                    const result = await this.services.tola.transferTOLA({
+                        user_id: order.customer.id,
+                        wallet_address: order.customer.wallet_address,
+                        amount_tola: tolaReward,
+                        reason: 'reward'
+                    });
+                    
+                    return {
+                        success: true,
+                        action_taken: 'tola_reward_sent',
+                        data: { amount: tolaReward, signature: result.signature }
+                    };
+                } catch (e: any) {
+                    logger.error('[Webhook] TOLA reward failed:', e.message);
                 }
             }
             
