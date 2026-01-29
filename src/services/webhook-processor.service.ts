@@ -132,7 +132,7 @@ export class WebhookProcessorService {
             
             // Distribute TOLA incentive for marketplace sale - 10,000 TOLA per sale
             if (order?.customer?.wallet_address && this.services.tola) {
-                const tolaReward = 10000; // Fixed 10,000 TOLA per marketplace sale
+                const tolaReward = 7000; // Fixed 7,000 TOLA per marketplace sale
                 
                 try {
                     const result = await this.services.tola.transferTOLA({
