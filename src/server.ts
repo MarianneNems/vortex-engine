@@ -27,42 +27,37 @@ const PORT = process.env.PORT || 3000;
 // SECURITY & MIDDLEWARE
 // ============================================
 
-// CORS configuration - Include production and staging domains
-const DEFAULT_ALLOWED_ORIGINS = [
-    'https://vortexartec.com',
-    'https://www.vortexartec.com',
-    'https://wordpress-1516791-6161016.cloudwaysapps.com'
-];
-
-const allowedOrigins = process.env.ALLOWED_ORIGINS 
-    ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
-    : DEFAULT_ALLOWED_ORIGINS;
-
+// CORS configuration - Allow all origins for API access
+// v4.0.0 FIX: Use permissive CORS to fix preflight issues
 const corsOptions = {
-    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-        // Allow requests with no origin (like mobile apps, curl, Postman)
-        if (!origin) {
-            return callback(null, true);
-        }
-        // Check if origin is in allowed list
-        if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
-            return callback(null, true);
-        }
-        // Log rejected origins for debugging
-        console.log(`[CORS] Rejected origin: ${origin}`);
-        callback(new Error('Not allowed by CORS'));
-    },
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'x-wp-user-id'],
+    origin: true, // Allow all origins
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'x-wp-user-id', 'Origin', 'Accept'],
     credentials: true,
     maxAge: 86400,
     preflightContinue: false,
-    optionsSuccessStatus: 204
+    optionsSuccessStatus: 200 // Some legacy browsers choke on 204
 };
 
-// Handle preflight OPTIONS requests explicitly
+// Handle preflight OPTIONS requests explicitly - MUST be before other routes
 app.options('*', cors(corsOptions));
 app.use(cors(corsOptions));
+
+// Explicit CORS headers for ALL requests (backup in case cors middleware fails)
+app.use((req: Request, res: Response, next: NextFunction) => {
+    const origin = req.headers.origin || '*';
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-key, x-wp-user-id, Origin, Accept');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Max-Age', '86400');
+    
+    // Handle preflight immediately
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+    }
+    next();
+});
 
 // Security headers
 app.use((req: Request, res: Response, next: NextFunction) => {
