@@ -142,12 +142,36 @@ router.post('/webhooks/order-created', validateWooCommerceWebhook, async (req: R
 /**
  * POST /wc/webhooks/order-paid
  * Called after on-chain TOLA payment is confirmed
+ * Supports both WordPress webhook format and direct API calls
  */
 router.post('/webhooks/order-paid', validateWooCommerceWebhook, async (req: Request, res: Response) => {
     try {
-        const { orderId, signature } = req.body;
+        // Support multiple payload formats
+        const orderId = req.body.orderId || req.body.order_id || req.body.id;
+        const signature = req.body.signature || req.body.transaction_id || req.body.txn;
         
-        logger.info(`[WOO] Order paid webhook: ${orderId}, sig: ${signature}`);
+        logger.info(`[WOO] Order paid webhook: ${orderId || 'N/A'}, sig: ${signature || 'N/A'}`);
+        
+        // Handle diagnostic/test webhooks
+        if (req.body.test === true || req.body.diagnostic === true) {
+            logger.info('[WOO] Diagnostic webhook received - returning success');
+            return res.json({
+                success: true,
+                message: 'Diagnostic webhook received',
+                test: true
+            });
+        }
+        
+        // Validate required fields
+        if (!orderId || !signature) {
+            logger.warn('[WOO] Order paid webhook missing required fields');
+            return res.status(400).json({
+                success: false,
+                error: 'Missing required fields: orderId and signature',
+                code: 'VALIDATION_ERROR',
+                received: { orderId: !!orderId, signature: !!signature }
+            });
+        }
         
         // Verify transaction on-chain
         const verified = await paymentService.verifyTransaction(signature);
@@ -155,7 +179,8 @@ router.post('/webhooks/order-paid', validateWooCommerceWebhook, async (req: Requ
         if (!verified) {
             return res.status(400).json({
                 success: false,
-                error: 'Transaction not found or invalid'
+                error: 'Transaction not found or invalid',
+                code: 'VERIFICATION_FAILED'
             });
         }
         
