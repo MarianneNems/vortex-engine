@@ -596,9 +596,10 @@ app.get('/tola/payments/status/:orderId', async (req, res) => {
 });
 
 // ============================================
-// WEBHOOK ENDPOINTS
+// WEBHOOK ENDPOINTS (Extended - Not in woocommerce.routes.ts)
 // ============================================
 
+// Generic webhook handler for routes not handled by woocommerce.routes.ts
 const createWebhookHandler = (eventType: string) => async (req: Request, res: Response) => {
     console.log(`[WEBHOOK] ${eventType}:`, JSON.stringify(req.body).slice(0, 200));
     if (webhookProcessor) {
@@ -610,9 +611,8 @@ const createWebhookHandler = (eventType: string) => async (req: Request, res: Re
     res.json({ success: true, message: `${eventType} received` });
 };
 
-app.post('/wc/webhooks/product-published', createWebhookHandler('product.published'));
-app.post('/wc/webhooks/order-created', createWebhookHandler('order.created'));
-app.post('/wc/webhooks/order-paid', createWebhookHandler('order.paid'));
+// NOTE: product-published, order-created, order-paid are handled by woocommerce.routes.ts
+// Only register webhooks NOT already defined in woocommerce.routes.ts
 app.post('/wc/webhooks/wallet-connected', createWebhookHandler('wallet.connected'));
 app.post('/wc/webhooks/tola-transaction', createWebhookHandler('tola.transaction'));
 app.post('/wc/webhooks/subscription-activated', createWebhookHandler('subscription.activated'));

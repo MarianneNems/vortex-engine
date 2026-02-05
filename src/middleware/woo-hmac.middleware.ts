@@ -83,12 +83,24 @@ export function validateWooCommerceWebhook(req: Request, res: Response, next: Ne
         .update(payload, 'utf8')
         .digest('base64');
 
-    // Compare signatures
-    if (computedHash !== signature) {
+    // Compare signatures using timing-safe comparison
+    const isValid = computedHash.length === signature.length && 
+        crypto.timingSafeEqual(Buffer.from(computedHash), Buffer.from(signature));
+    
+    if (!isValid) {
         console.error('[WEBHOOK AUTH] ERROR: Signature mismatch');
+        console.error(`[WEBHOOK AUTH] Path: ${req.path}`);
+        console.error(`[WEBHOOK AUTH] Source: ${source || 'unknown'}`);
+        console.error(`[WEBHOOK AUTH] Delivery ID: ${deliveryId || 'N/A'}`);
         console.error(`[WEBHOOK AUTH] Expected: ${computedHash.substring(0, 20)}...`);
         console.error(`[WEBHOOK AUTH] Received: ${signature.substring(0, 20)}...`);
         console.error(`[WEBHOOK AUTH] Payload length: ${payload.length} bytes`);
+        console.error(`[WEBHOOK AUTH] Content-Type: ${req.headers['content-type']}`);
+        
+        // Log payload preview for debugging (first 200 chars)
+        if (process.env.NODE_ENV !== 'production') {
+            console.error(`[WEBHOOK AUTH] Payload preview: ${payload.substring(0, 200)}...`);
+        }
         
         // In development/staging, allow through but log warning
         if (process.env.NODE_ENV !== 'production' || process.env.WEBHOOK_SKIP_VERIFY === 'true') {
@@ -99,7 +111,13 @@ export function validateWooCommerceWebhook(req: Request, res: Response, next: Ne
         return res.status(401).json({
             success: false,
             error: 'Invalid webhook signature',
-            code: 'INVALID_SIGNATURE'
+            code: 'INVALID_SIGNATURE',
+            debug: {
+                path: req.path,
+                source: source || 'unknown',
+                delivery_id: deliveryId || 'N/A',
+                payload_length: payload.length
+            }
         });
     }
 
