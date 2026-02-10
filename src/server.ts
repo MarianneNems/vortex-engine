@@ -32,7 +32,7 @@ const PORT = process.env.PORT || 3000;
 const corsOptions = {
     origin: true, // Allow all origins
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'x-wp-user-id', 'Origin', 'Accept'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'x-wp-user-id', 'X-Vortex-Source', 'X-Vortex-Secret', 'X-WordPress-Site', 'Origin', 'Accept'],
     credentials: true,
     maxAge: 86400,
     preflightContinue: false,
@@ -48,7 +48,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     const origin = req.headers.origin || '*';
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-key, x-wp-user-id, Origin, Accept');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-key, x-wp-user-id, X-Vortex-Source, X-Vortex-Secret, X-WordPress-Site, Origin, Accept');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Max-Age', '86400');
     
@@ -515,12 +515,22 @@ app.get('/api/tola/balance/:wallet', async (req, res) => {
 
 app.post('/api/tola/mint-nft', async (req, res) => {
     if (!nftService) return res.status(503).json({ success: false, error: 'NFT service unavailable' });
-    const { name, uri, symbol, description, recipient, seller_fee_basis_points } = req.body;
-    if (!name || !uri) return res.status(400).json({ success: false, error: 'name and uri are required', code: 'VALIDATION_ERROR' });
+    const { name, uri, symbol, description, recipient, recipient_wallet, seller_fee_basis_points, sellerFeeBasisPoints, creators, metadata, wallet_address } = req.body;
+    if (!name && !metadata?.name) return res.status(400).json({ success: false, error: 'name is required', code: 'VALIDATION_ERROR' });
+    if (!uri && !metadata?.image) return res.status(400).json({ success: false, error: 'uri is required', code: 'VALIDATION_ERROR' });
     try {
-        const result = await nftService.mintNFT({ name, uri, symbol, description, recipient, seller_fee_basis_points });
+        const result = await nftService.mintNFT({
+            name: name || metadata?.name || 'Vortex AI Artwork',
+            uri: uri || metadata?.image || '',
+            symbol: symbol || metadata?.symbol || 'VRTX',
+            description: description || metadata?.description || '',
+            recipient: recipient || recipient_wallet || wallet_address || undefined,
+            seller_fee_basis_points: seller_fee_basis_points || sellerFeeBasisPoints || 500,
+            creators: creators || metadata?.properties?.creators || undefined
+        });
         res.status(result.success ? 201 : 500).json(result);
     } catch (error: any) {
+        console.error('[MINT ERROR]', error.message);
         res.status(500).json({ success: false, error: error.message });
     }
 });
