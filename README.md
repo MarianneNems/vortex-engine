@@ -15,9 +15,18 @@ Complete blockchain backend for Vortex AI platform:
 - **PRIMARY:** USDC stablecoin payments (user-facing, 1:1 USD)
 - **SECONDARY:** TOLA incentive distribution (backend rewards, hidden)
 - **WooCommerce** marketplace integration
-- **NFT Minting** via Metaplex (uses TOLA)
+- **NFT Minting** via Metaplex on Solana
 - **Solana blockchain** real-time verification
 - **WordPress integration** via webhooks
+
+### SOL-only minting mode (recommended for launch)
+
+Set `MINT_PAYMENT_MODE=SOL` (default) in your `.env`. In this mode:
+- The treasury wallet pays all on-chain fees (rent + tx) in **SOL**.
+- No TOLA, USDC, or SPL-token transfers are required for minting.
+- No Tokenkeg / WSOL / SPL-token account creation for fee payment.
+- The engine checks treasury SOL balance before each mint and returns HTTP 503 (`INSUFFICIENT_TREASURY_SOL`) if funds are too low.
+- The 10 USDC application-level minting fee is handled by WordPress, not on-chain.
 
 ---
 
@@ -82,7 +91,7 @@ PLATFORM_TREASURY_PUBKEY=your_treasury_wallet_address
 TOLA_MINT=H6qNYafSrpCjckH8yVwiPmXYPd1nCNBP8uQMZkv5hkky
 
 # WooCommerce
-WOO_BASE_URL=https://vortexartec.com
+WOO_BASE_URL=https://www.vortexartec.com
 WOO_CONSUMER_KEY=your_woocommerce_key
 WOO_CONSUMER_SECRET=your_woocommerce_secret
 WOO_WEBHOOK_SECRET=your_webhook_secret
