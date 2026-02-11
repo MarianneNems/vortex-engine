@@ -20,6 +20,12 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+// Minting guardrails
+import { mintRateLimiter } from './middleware/mint-rate-limit.middleware';
+import { mintGating } from './middleware/mint-gating.middleware';
+import { attachRequestId, buildSafeErrorResponse } from './middleware/mint-error-handler';
+import { TreasuryMonitorService } from './services/treasury-monitor.service';
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -226,6 +232,21 @@ try {
     console.error('[SERVICES] ✗ TOLANFTMintService:', e.message);
 }
 
+// Treasury monitor -- derives public key from nftService
+let treasuryMonitor: TreasuryMonitorService | null = null;
+try {
+    const treasuryPubkey = nftService?.getTreasuryAddress?.() || null;
+    if (treasuryPubkey) {
+        treasuryMonitor = new TreasuryMonitorService(treasuryPubkey);
+        treasuryMonitor.start();
+        console.log('[SERVICES] ✓ TreasuryMonitor');
+    } else {
+        console.log('[SERVICES] - TreasuryMonitor skipped (no treasury key)');
+    }
+} catch (e: any) {
+    console.error('[SERVICES] ✗ TreasuryMonitor:', e.message);
+}
+
 try {
     const { DailyAssetService } = require('./services/daily-asset.service');
     dailyAssetService = new DailyAssetService();
@@ -341,6 +362,20 @@ app.get('/health', async (req, res) => {
         }
     };
     
+    // Always include treasury status
+    if (treasuryMonitor) {
+        const th = treasuryMonitor.getCachedHealth();
+        if (th) {
+            response.treasury = {
+                treasury_public_key: th.treasury_public_key,
+                treasury_sol_balance: th.treasury_sol_balance,
+                min_required_sol: th.min_required_sol,
+                status: th.status,
+                last_checked: th.last_checked
+            };
+        }
+    }
+
     if (detailed) {
         response.detailed = {
             routes: routeStatus,
@@ -513,11 +548,27 @@ app.get('/api/tola/balance/:wallet', async (req, res) => {
 // NFT ENDPOINTS (Additional)
 // ============================================
 
-app.post('/api/tola/mint-nft', async (req, res) => {
-    if (!nftService) return res.status(503).json({ success: false, error: 'NFT service unavailable' });
+app.post('/api/tola/mint-nft', attachRequestId, mintRateLimiter, mintGating, async (req: Request, res: Response) => {
+    const requestId = req.requestId || 'unknown';
+
+    if (!nftService) {
+        return res.status(503).json({
+            ok: false, success: false, code: 'MINT_FAILED',
+            message: 'NFT service is starting up. Please try again in a moment.',
+            request_id: requestId
+        });
+    }
+
     const { name, uri, symbol, description, recipient, recipient_wallet, seller_fee_basis_points, sellerFeeBasisPoints, creators, metadata, wallet_address } = req.body;
-    if (!name && !metadata?.name) return res.status(400).json({ success: false, error: 'name is required', code: 'VALIDATION_ERROR' });
-    if (!uri && !metadata?.image) return res.status(400).json({ success: false, error: 'uri is required', code: 'VALIDATION_ERROR' });
+    if (!name && !metadata?.name) return res.status(400).json({ ok: false, success: false, code: 'VALIDATION_ERROR', message: 'name is required', request_id: requestId });
+    if (!uri && !metadata?.image) return res.status(400).json({ ok: false, success: false, code: 'VALIDATION_ERROR', message: 'uri is required', request_id: requestId });
+
+    // Pre-mint treasury balance check
+    if (treasuryMonitor) {
+        const blocked = await treasuryMonitor.preMintCheck(requestId);
+        if (blocked) return res.status(503).json(blocked);
+    }
+
     try {
         const result = await nftService.mintNFT({
             name: name || metadata?.name || 'Vortex AI Artwork',
@@ -528,10 +579,21 @@ app.post('/api/tola/mint-nft', async (req, res) => {
             seller_fee_basis_points: seller_fee_basis_points || sellerFeeBasisPoints || 500,
             creators: creators || metadata?.properties?.creators || undefined
         });
-        res.status(result.success ? 201 : 500).json(result);
+
+        if (result.success) {
+            res.status(201).json({ ...result, request_id: requestId });
+        } else {
+            // Service returned a structured failure
+            const { httpStatus, body } = buildSafeErrorResponse(
+                new Error(result.error || 'Mint failed'),
+                requestId
+            );
+            res.status(httpStatus).json(body);
+        }
     } catch (error: any) {
         console.error('[MINT ERROR]', error.message);
-        res.status(500).json({ success: false, error: error.message });
+        const { httpStatus, body } = buildSafeErrorResponse(error, requestId);
+        res.status(httpStatus).json(body);
     }
 });
 
