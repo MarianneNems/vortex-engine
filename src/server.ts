@@ -240,6 +240,21 @@ try {
         treasuryMonitor = new TreasuryMonitorService(treasuryPubkey);
         treasuryMonitor.start();
         console.log('[SERVICES] ✓ TreasuryMonitor');
+
+        // Log treasury public key and SOL balance at startup
+        const mintPaymentMode = process.env.MINT_PAYMENT_MODE || 'SOL';
+        console.log(`[TREASURY] Public Key: ${treasuryPubkey}`);
+        console.log(`[TREASURY] MINT_PAYMENT_MODE: ${mintPaymentMode}`);
+        // Balance will be logged asynchronously after the first monitor tick
+        setTimeout(async () => {
+            try {
+                const health = treasuryMonitor?.getCachedHealth?.();
+                if (health) {
+                    console.log(`[TREASURY] SOL Balance: ${health.treasury_sol_balance?.toFixed(4) ?? 'unknown'} SOL`);
+                    console.log(`[TREASURY] Status: ${health.status}`);
+                }
+            } catch {}
+        }, 5000);
     } else {
         console.log('[SERVICES] - TreasuryMonitor skipped (no treasury key)');
     }
@@ -581,7 +596,11 @@ app.post('/api/tola/mint-nft', attachRequestId, mintRateLimiter, mintGating, asy
         });
 
         if (result.success) {
-            res.status(201).json({ ...result, request_id: requestId });
+            res.status(201).json({
+                ...result,
+                payment_status: result.payment_status || 'assumed_paid',
+                request_id: requestId
+            });
         } else {
             // Service returned a structured failure
             const { httpStatus, body } = buildSafeErrorResponse(

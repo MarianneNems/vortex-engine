@@ -57,6 +57,16 @@ if (IMMUTABLE_ROYALTY.BPS !== 500 || IMMUTABLE_ROYALTY.RATE !== 0.05) {
     throw new Error('[TOLA NFT SERVICE] CRITICAL: Royalty configuration has been tampered with!');
 }
 
+// -----------------------------------------------------------------------
+// MINT_PAYMENT_MODE  (SOL | TOLA | USDC)
+// When SOL (default / recommended for launch):
+//   - No token-program transfers are performed for fees
+//   - No token account creation for fee payment
+//   - Only treasury SOL balance check + standard Metaplex mint transaction
+// -----------------------------------------------------------------------
+const MINT_PAYMENT_MODE = (process.env.MINT_PAYMENT_MODE || 'SOL').toUpperCase();
+const ESTIMATED_MINT_COST_SOL = parseFloat(process.env.ESTIMATED_MINT_COST_SOL || '0.012');
+
 // Configuration
 const CONFIG = {
     maxRetries: 3,
@@ -105,6 +115,7 @@ export interface NFTMintResult {
     error?: string;
     explorer_url?: string;
     fee?: number;
+    payment_status?: string;
 }
 
 export interface NFTTransferRequest {
@@ -258,6 +269,32 @@ export class TOLANFTMintService {
             };
         }
 
+        // ---------------------------------------------------------------
+        // SOL balance pre-check (belt-and-braces alongside TreasuryMonitor)
+        // When MINT_PAYMENT_MODE=SOL the treasury must have enough SOL to
+        // cover rent + transaction fees.  No token transfers are performed.
+        // ---------------------------------------------------------------
+        if (MINT_PAYMENT_MODE === 'SOL') {
+            try {
+                const connection = this.getConnection();
+                const lamports = await connection.getBalance(this.treasuryKeypair.publicKey);
+                const solBalance = lamports / LAMPORTS_PER_SOL;
+                if (solBalance < ESTIMATED_MINT_COST_SOL) {
+                    logger.error('[NFT Service] Insufficient treasury SOL for mint', {
+                        balance: solBalance,
+                        required: ESTIMATED_MINT_COST_SOL
+                    });
+                    return {
+                        success: false,
+                        error: `Insufficient treasury SOL: ${solBalance.toFixed(4)} < ${ESTIMATED_MINT_COST_SOL}`
+                    };
+                }
+                logger.info(`[NFT Service] Treasury SOL OK: ${solBalance.toFixed(4)} SOL (need ${ESTIMATED_MINT_COST_SOL})`);
+            } catch (balErr: any) {
+                logger.warn('[NFT Service] SOL balance check failed, proceeding anyway', { error: balErr.message });
+            }
+        }
+
         try {
             logger.info(`[NFT Service] Minting NFT: ${request.name}`);
             
@@ -401,7 +438,8 @@ export class TOLANFTMintService {
                 token_account: tokenAccount.toBase58(),
                 signature,
                 explorer_url: `https://solscan.io/token/${mintAddress.toBase58()}`,
-                fee
+                fee,
+                payment_status: 'assumed_paid' // App-level fee (e.g. 10 USDC) handled by WordPress; on-chain fees paid in SOL by treasury
             };
             
         } catch (error: any) {
