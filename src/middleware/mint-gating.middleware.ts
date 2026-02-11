@@ -4,6 +4,7 @@
  * Feature-gated access control for the mint endpoint.
  *
  * Env vars:
+ *   MINT_PAYMENT_MODE             SOL | TOLA | USDC  (default SOL -- SOL-only mode skips token gating)
  *   MINT_GATING_MODE              OFF | ONBOARDING | TOLA_HOLD | TOLA_STAKE | ONBOARDING_OR_TOLA
  *   WP_RAILWAY_SHARED_SECRET      HMAC shared secret between WordPress and Railway
  *   MIN_TOLA_HOLD                 Minimum TOLA tokens required (default 25000)
@@ -11,7 +12,7 @@
  *   TOLA_STAKING_VAULT_ADDRESS    Vault address for staking (future)
  *
  * @package VortexEngine
- * @version 4.0.0
+ * @version 4.1.0
  */
 
 import { Request, Response, NextFunction } from 'express';
@@ -20,7 +21,9 @@ import crypto from 'crypto';
 import { logger } from '../utils/logger';
 
 type GatingMode = 'OFF' | 'ONBOARDING' | 'TOLA_HOLD' | 'TOLA_STAKE' | 'ONBOARDING_OR_TOLA';
+type PaymentMode = 'SOL' | 'TOLA' | 'USDC';
 
+const MINT_PAYMENT_MODE = (process.env.MINT_PAYMENT_MODE || 'SOL').toUpperCase() as PaymentMode;
 const MODE = (process.env.MINT_GATING_MODE || 'OFF').toUpperCase() as GatingMode;
 const SHARED_SECRET = process.env.WP_RAILWAY_SHARED_SECRET || '';
 const MIN_TOLA_HOLD = parseInt(process.env.MIN_TOLA_HOLD || '25000', 10);
@@ -98,6 +101,17 @@ function denyResponse(res: Response, details: Record<string, any>): void {
 // -----------------------------------------------------------------------
 
 export async function mintGating(req: Request, res: Response, next: NextFunction): Promise<void> {
+    // -----------------------------------------------------------------------
+    // SOL-only minting mode: skip all token-based gating.
+    // When MINT_PAYMENT_MODE=SOL the treasury pays fees in SOL and no TOLA
+    // balance / hold / stake is required from the user.
+    // -----------------------------------------------------------------------
+    if (MINT_PAYMENT_MODE === 'SOL') {
+        logger.debug('[Mint Gating] SOL-only mode -- bypassing token gating');
+        next();
+        return;
+    }
+
     if (MODE === 'OFF') {
         next();
         return;
@@ -164,4 +178,4 @@ export async function mintGating(req: Request, res: Response, next: NextFunction
     next();
 }
 
-logger.info('[Mint Gating] Initialized', { mode: MODE, min_tola_hold: MIN_TOLA_HOLD });
+logger.info('[Mint Gating] Initialized', { mode: MODE, mint_payment_mode: MINT_PAYMENT_MODE, min_tola_hold: MIN_TOLA_HOLD });
