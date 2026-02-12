@@ -13,7 +13,7 @@ NODE_ENV=production
 
 # Use Helius or QuickNode for reliable RPC (avoid rate limits)
 # Get free Helius key at: https://helius.xyz
-SOLANA_RPC_URL=https://mainnet.helius-rpc.com/?api-key=YOUR_HELIUS_API_KEY
+SOLANA_RPC_URL=${SOLANA_RPC_URL}
 SOLANA_NETWORK=mainnet-beta
 
 # ============================================
@@ -109,44 +109,59 @@ PLATFORM_TREASURY_PUBKEY=GYrv6jREdH2Rajd93AtxCghotazKXt6qwxNZtyL6ssp2
 # WORDPRESS INTEGRATION
 # ============================================
 
-WP_BASE_URL=https://vortexartec.com
-WP_AJAX_URL=https://vortexartec.com/wp-admin/admin-ajax.php
-WP_API_URL=https://vortexartec.com/wp-json
+WP_BASE_URL=https://www.vortexartec.com
+WP_AJAX_URL=https://www.vortexartec.com/wp-admin/admin-ajax.php
+WP_API_URL=https://www.vortexartec.com/wp-json
 
 # WooCommerce API credentials
 # Generate in WooCommerce > Settings > Advanced > REST API
-WOO_CONSUMER_KEY=ck_your_consumer_key_here
-WOO_CONSUMER_SECRET=cs_your_consumer_secret_here
+WOO_CONSUMER_KEY=${WOO_CONSUMER_KEY}
+WOO_CONSUMER_SECRET=${WOO_CONSUMER_SECRET}
+WOO_WEBHOOK_SECRET=${WOO_WEBHOOK_SECRET}
 
 # ============================================
 # RUNPOD AI CONFIGURATION
 # ============================================
 
-# RunPod A1111 API (Direct port 17860)
-RUNPOD_BASE_URL=https://x0ctne8qjra54v-17860.proxy.runpod.net
-RUNPOD_API_KEY=rpa_YOUR_RUNPOD_API_KEY
+# RunPod A1111 API (Image Generation - Direct port 17860)
+RUNPOD_BASE_URL=${RUNPOD_URL}
+RUNPOD_API_KEY=${RUNPOD_TOKEN}
 RUNPOD_AUTH_REQUIRED=false
+
+# RunPod LoRA Training Endpoint (HURAII Training - v4.0.0)
+RUNPOD_LORA_ENDPOINT=${RUNPOD_LORA_ENDPOINT}
+RUNPOD_LORA_WEBHOOK_SECRET=${RUNPOD_LORA_WEBHOOK_SECRET}
+
+# ============================================
+# RUNPOD S3 STORAGE CONFIGURATION
+# ============================================
+
+S3_ENDPOINT=${VORTEX_S3_BUCKET_URL}
+S3_BUCKET=${S3_BUCKET_NAME}
+S3_REGION=us-ca-2
+S3_ACCESS_KEY=${S3_API_KEY}
+S3_SECRET_KEY=${S3_API_KEY_SECRET_ID}
 
 # ============================================
 # HUGGING FACE (Free Fallback)
 # ============================================
 
 # Get free token at: https://huggingface.co/settings/tokens
-HUGGINGFACE_TOKEN=hf_your_token_here
+HUGGINGFACE_TOKEN=${HUGGINGFACE_TOKEN}
 
 # ============================================
 # SECURITY
 # ============================================
 
 # JWT secret for API authentication
-# Generate a random 64-character string
-JWT_SECRET=generate_a_long_random_string_here_at_least_64_characters_long
+JWT_SECRET=${JWT_SECRET}
 
 # Webhook signature secret for WooCommerce
-WEBHOOK_SECRET=another_random_secret_for_webhook_validation_32_chars
+WEBHOOK_SECRET=${WOO_WEBHOOK_SECRET}
 
 # API key for WordPress integration
-VORTEX_API_KEY=your_vortex_api_key_here
+VORTEX_API_KEY=${VORTEX_API_KEY}
+VORTEX_ADMIN_API_KEY=${VORTEX_ADMIN_API_KEY}
 
 # ============================================
 # RAILWAY DEPLOYMENT
