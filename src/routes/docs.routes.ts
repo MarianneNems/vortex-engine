@@ -17,7 +17,7 @@ const API_DOCS = {
         description: 'Production-grade Solana blockchain backend for USDC payments, NFT minting, and TOLA incentives',
         contact: {
             name: 'Vortex Platform',
-            url: 'https://vortexartec.com'
+            url: 'https://www.vortexartec.com'
         }
     },
     servers: [
