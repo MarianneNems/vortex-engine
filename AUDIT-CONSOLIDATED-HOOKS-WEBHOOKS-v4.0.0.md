@@ -524,9 +524,9 @@ NFT_ROYALTY_BPS=500
 PLATFORM_TREASURY_PUBKEY=GYrv6jREdH2Rajd93AtxCghotazKXt6qwxNZtyL6ssp2
 
 # WordPress Integration
-WP_BASE_URL=https://vortexartec.com
-WP_AJAX_URL=https://vortexartec.com/wp-admin/admin-ajax.php
-WP_API_URL=https://vortexartec.com/wp-json
+WP_BASE_URL=https://www.vortexartec.com
+WP_AJAX_URL=https://www.vortexartec.com/wp-admin/admin-ajax.php
+WP_API_URL=https://www.vortexartec.com/wp-json
 ```
 
 ---

@@ -102,16 +102,16 @@ router.post('/webhooks/order-created', validateWooCommerceWebhook, async (req: R
             });
         }
         
-        // Calculate TOLA amount
+        // Calculate USDC amount
         const usdAmount = parseFloat(order.total);
-        const tolaAmount = usdAmount; // $1 = 1 TOLA
+        const usdcAmount = usdAmount; // $1 = 1 USDC
         
         // Create payment intent
         const intent = await paymentService.createPaymentIntent({
             orderId: order.id,
             amountUSD: usdAmount,
-            amountToken: tolaAmount,
-            currency: 'TOLA',
+            amountToken: usdcAmount,
+            currency: 'USDC',
             buyerEmail: order.billing.email,
             items: order.line_items.map((item: any) => ({
                 productId: item.product_id,
