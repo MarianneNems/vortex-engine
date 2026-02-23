@@ -54,14 +54,28 @@ router.get('/agents', async (req: Request, res: Response) => {
                         capabilities: ['wallet_management', 'nft_minting', 'transactions']
                     },
                     {
+                        id: 'horace',
+                        name: 'HORACE',
+                        type: 'curator',
+                        description: 'Content curation, quality assessment, and recommendation engine (CPU)',
+                        status: 'online',
+                        hardware: 'cpu',
+                        capabilities: ['content_curation', 'quality_assessment', 'recommendations', 'seo_analysis']
+                    },
+                    {
                         id: 'archer',
                         name: 'ARCHER',
                         type: 'orchestrator',
-                        description: 'Agent coordination and task management',
+                        description: 'Agent coordination, MoE routing, COSMOS sync, and task management',
                         status: 'online',
-                        capabilities: ['coordination', 'task_routing', 'optimization']
+                        hardware: 'cpu',
+                        capabilities: ['coordination', 'task_routing', 'optimization', 'learning_sync', 'cosmos_events']
                     }
-                ]
+                ],
+                hardware_map: {
+                    gpu: ['huraii'],
+                    cpu: ['cloe', 'strategist', 'thorius', 'horace', 'archer']
+                }
             },
             version: '4.0.0'
         });
