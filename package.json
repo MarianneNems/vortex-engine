@@ -11,7 +11,7 @@
     "lint": "eslint src/**/*.ts",
     "clean": "rm -rf dist",
     "rebuild": "npm run clean && npm run build",
-    "postinstall": "node node_modules/typescript/bin/tsc || echo TypeScript build skipped"
+    "postinstall": "npm rebuild 2>/dev/null; node node_modules/typescript/bin/tsc || echo TypeScript build skipped"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -47,7 +47,7 @@
     "tola",
     "vortex"
   ],
-  "author": "Vortex Platform",
-  "license": "MIT"
+  "author": "Marianne Nems <mariannenems@gmail.com>",
+  "license": "Proprietary"
 }
 

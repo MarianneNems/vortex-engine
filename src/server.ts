@@ -838,39 +838,39 @@ app.listen(PORT, () => {
     console.log(`   Collections • Auctions • Creator Profiles • USDC/TOLA`);
     console.log(`${'═'.repeat(60)}\n`);
     
-    console.log(`🌐 Server:     http://localhost:${PORT}`);
-    console.log(`📚 API Docs:   http://localhost:${PORT}/api/docs`);
-    console.log(`💚 Health:     http://localhost:${PORT}/health`);
-    console.log(`🔍 Debug:      http://localhost:${PORT}/debug/routes\n`);
-    
+    console.log(`Server:     http://localhost:${PORT}`);
+    console.log(`API Docs:   http://localhost:${PORT}/api/docs`);
+    console.log(`Health:     http://localhost:${PORT}/health`);
+    console.log(`Debug:      http://localhost:${PORT}/debug/routes\n`);
+
     const loadedRoutes = Object.values(routeStatus).filter(Boolean).length;
     const totalRoutes = Object.keys(routeStatus).length;
-    console.log(`📁 Routes: ${loadedRoutes}/${totalRoutes}`);
-    
+    console.log(`Routes: ${loadedRoutes}/${totalRoutes}`);
+
     const services = [
-        { name: 'USDC Transfer', ok: !!usdcService },
-        { name: 'TOLA Transfer', ok: !!tolaService },
-        { name: 'NFT Minting', ok: !!nftService },
-        { name: 'Daily Assets', ok: !!dailyAssetService },
-        { name: 'TOLA Metrics', ok: !!tolaMetricsService },
-        { name: 'Payments', ok: !!paymentService },
-        { name: 'Webhooks', ok: !!webhookProcessor },
-        { name: 'Collections', ok: !!collectionService },
-        { name: 'Marketplace', ok: !!marketplaceService },
-        { name: 'Creators', ok: !!creatorService },
-        { name: 'Royalty (5% IMMUTABLE)', ok: !!royaltyService }
+        { name: 'USDC Transfer',          ok: !!usdcService },
+        { name: 'TOLA Transfer',          ok: !!tolaService },
+        { name: 'NFT Minting',            ok: !!nftService },
+        { name: 'Daily Assets',           ok: !!dailyAssetService },
+        { name: 'TOLA Metrics',           ok: !!tolaMetricsService },
+        { name: 'Payments',               ok: !!paymentService },
+        { name: 'Webhooks',               ok: !!webhookProcessor },
+        { name: 'Collections',            ok: !!collectionService },
+        { name: 'Marketplace',            ok: !!marketplaceService },
+        { name: 'Creators',               ok: !!creatorService },
+        { name: 'Royalty (5% IMMUTABLE)', ok: !!royaltyService },
     ];
-    
+
     const activeServices = services.filter(s => s.ok).length;
-    console.log(`⚙️  Services: ${activeServices}/${services.length}`);
-    services.forEach(s => console.log(`   ${s.ok ? '✓' : '✗'} ${s.name}`));
-    
+    console.log(`Services: ${activeServices}/${services.length}`);
+    services.forEach(s => console.log(`   ${s.ok ? '[OK]' : '[--]'} ${s.name}`));
+
     const treasuryOk = !!process.env.TREASURY_WALLET_PRIVATE;
-    console.log(`\n🔐 Treasury: ${treasuryOk ? 'Configured' : 'NOT CONFIGURED'}`);
-    
+    console.log(`\nTreasury: ${treasuryOk ? 'Configured' : 'NOT CONFIGURED - set TREASURY_WALLET_PRIVATE'}`);
+
     // Royalty configuration display
-    console.log(`\n💎 Royalty Configuration (IMMUTABLE):`);
-    console.log(`   Rate: 5% (500 BPS) - LOCKED`);
+    console.log('\nRoyalty Configuration (IMMUTABLE):');
+    console.log('   Rate:   5% (500 BPS) - LOCKED');
     console.log(`   Wallet: ${process.env.PLATFORM_COMMISSION_WALLET || '6VPLAVjote7Bqo96CbJ5kfrotkdU9BF3ACeqsJtcvH8g'}`);
     
     console.log(`\n${'─'.repeat(60)}`);
