@@ -763,6 +763,18 @@ app.get('/api/gpu/usage', (req, res) => {
     });
 });
 
+// WordPress unified wire: generation complete (v4.0.0) - accepts user_id, generation_id, duration
+app.post('/api/generation/complete', (req, res) => {
+    const { user_id, generation_id, duration } = req.body || {};
+    console.log('[API] Generation complete:', { user_id, generation_id, duration });
+    res.status(200).json({
+        success: true,
+        message: 'Generation complete acknowledged',
+        generation_id: generation_id || null,
+        timestamp: new Date().toISOString()
+    });
+});
+
 // Swap fees endpoint
 app.get('/api/swap/fees', (req, res) => {
     res.json({
