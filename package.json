@@ -21,7 +21,7 @@
     "@metaplex-foundation/mpl-token-metadata": "^3.2.1",
     "@solana/spl-token": "^0.4.14",
     "@solana/web3.js": "^1.98.4",
-    "axios": "^1.6.0",
+    "axios": "^1.13.5",
     "body-parser": "^1.20.2",
     "bs58": "^5.0.0",
     "cors": "^2.8.5",
