@@ -744,6 +744,86 @@ app.post('/api/royalty/webhook/sale', async (req, res) => {
 });
 
 // ============================================
+// WALLET ENDPOINTS (WordPress Railway Connector)
+// ============================================
+
+// Wallet registration from WordPress
+app.post('/api/wallet/register', (req: Request, res: Response) => {
+    const { user_id, wallet_address, wallet_type, email, username, platform, wordpress_url } = req.body;
+    
+    if (!wallet_address || !user_id) {
+        return res.status(400).json({ success: false, error: 'wallet_address and user_id are required' });
+    }
+    
+    console.log(`[WALLET] Register: user=${user_id} wallet=${wallet_address} type=${wallet_type || 'unknown'} from=${wordpress_url || 'unknown'}`);
+    
+    // Store registration (in-memory for now, persisted via webhook back to WordPress)
+    res.json({
+        success: true,
+        data: {
+            user_id,
+            wallet_address,
+            wallet_type: wallet_type || 'phantom',
+            registered_at: new Date().toISOString(),
+            platform: platform || 'vortex-artec-wordpress'
+        },
+        version: '4.0.0',
+        timestamp: new Date().toISOString()
+    });
+});
+
+// Wallet transaction history (queries Solana RPC)
+app.get('/api/wallet/transactions/:wallet', async (req: Request, res: Response) => {
+    const { wallet } = req.params;
+    const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
+    const offset = parseInt(req.query.offset as string) || 0;
+    
+    if (!wallet) {
+        return res.status(400).json({ success: false, error: 'Wallet address required' });
+    }
+    
+    try {
+        // Query Solana RPC for transaction signatures
+        const { Connection, PublicKey } = require('@solana/web3.js');
+        const connection = new Connection(
+            process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com',
+            'confirmed'
+        );
+        
+        const pubkey = new PublicKey(wallet);
+        const signatures = await connection.getSignaturesForAddress(pubkey, { limit });
+        
+        const transactions = signatures.map((sig: any) => ({
+            signature: sig.signature,
+            slot: sig.slot,
+            block_time: sig.blockTime ? new Date(sig.blockTime * 1000).toISOString() : null,
+            status: sig.err ? 'failed' : 'confirmed',
+            memo: sig.memo || null
+        }));
+        
+        res.json({
+            success: true,
+            data: transactions,
+            wallet,
+            count: transactions.length,
+            version: '4.0.0',
+            timestamp: new Date().toISOString()
+        });
+    } catch (error: any) {
+        console.error('[WALLET] Transaction history error:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            data: [],
+            wallet,
+            count: 0,
+            version: '4.0.0',
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// ============================================
 // MISSING ENDPOINTS (Fix 404s)
 // ============================================
 

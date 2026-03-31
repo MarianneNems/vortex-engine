@@ -9,40 +9,62 @@
 import { Router, Request, Response } from 'express';
 import { logger } from '../utils/logger';
 import { authMiddleware } from '../middleware/auth.middleware';
+import { TOLANFTMintService } from '../services/tola-nft-mint.service';
 
 const router = Router();
+const mintService = new TOLANFTMintService();
 
 /**
  * POST /api/tola-masterpiece/mint
- * Mint a new masterpiece NFT
+ * Mint a new masterpiece NFT on Solana via TOLA
  */
 router.post('/mint', authMiddleware, async (req: Request, res: Response) => {
     try {
-        const { name, description, image_url, artist_id, metadata } = req.body;
-        
+        const { name, description, image_url, artist_id, metadata, creators, uri, sellerFeeBasisPoints } = req.body;
+
         if (!name || !image_url) {
             return res.status(400).json({
                 success: false,
                 error: 'Missing name or image_url'
             });
         }
-        
-        logger.info(`[MASTERPIECE] Minting: ${name} for artist ${artist_id}`);
-        
-        // Placeholder - actual NFT minting logic would go here
-        res.json({
-            success: true,
-            data: {
-                mint_address: `MOCK_MINT_${Date.now()}`,
-                name,
-                description,
-                image_url,
-                artist_id,
-                status: 'pending',
-                created_at: new Date().toISOString()
-            },
-            version: '4.0.0'
+
+        logger.info(`[MASTERPIECE] Minting on Solana: ${name} for artist ${artist_id}`);
+
+        // Mint via real TOLA NFT service on Solana
+        const result = await mintService.mintNFT({
+            name,
+            symbol: 'TOLA',
+            uri: uri || '',
+            image_url,
+            description: description || '',
+            creators: creators || [],
+            sellerFeeBasisPoints: sellerFeeBasisPoints || 1000,
+            metadata: metadata || {},
         });
+
+        if (result.success) {
+            res.json({
+                success: true,
+                data: {
+                    mint_address: result.mintAddress,
+                    signature: result.signature,
+                    name,
+                    description,
+                    image_url,
+                    artist_id,
+                    status: 'minted',
+                    created_at: new Date().toISOString()
+                },
+                version: '4.0.0'
+            });
+        } else {
+            res.status(500).json({
+                success: false,
+                error: result.error || 'Minting failed',
+                version: '4.0.0'
+            });
+        }
         
     } catch (error: any) {
         logger.error('[MASTERPIECE] Mint error:', error);

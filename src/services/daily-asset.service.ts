@@ -352,12 +352,12 @@ export class DailyAssetService {
                 return this.productsCache;
             }
             
-            // Return mock data as last resort
-            return this.getMockProducts();
+            // No products available — return empty (no mock data in production)
+            return [];
             
         } catch (error: any) {
             logger.error('[Daily Asset Service] Get products failed:', error);
-            return this.productsCache.length > 0 ? this.productsCache : this.getMockProducts();
+            return this.productsCache.length > 0 ? this.productsCache : [];
         }
     }
 
