@@ -36,10 +36,10 @@ router.post('/mint', authMiddleware, async (req: Request, res: Response) => {
             name,
             symbol: 'TOLA',
             uri: uri || '',
-            image_url,
+            image: image_url || '',
             description: description || '',
             creators: creators || [],
-            sellerFeeBasisPoints: sellerFeeBasisPoints || 1000,
+            seller_fee_basis_points: sellerFeeBasisPoints || 1000,
             metadata: metadata || {},
         });
 
@@ -47,7 +47,7 @@ router.post('/mint', authMiddleware, async (req: Request, res: Response) => {
             res.json({
                 success: true,
                 data: {
-                    mint_address: result.mintAddress,
+                    mint_address: result.mint_address,
                     signature: result.signature,
                     name,
                     description,
@@ -76,40 +76,13 @@ router.post('/mint', authMiddleware, async (req: Request, res: Response) => {
 });
 
 /**
- * GET /api/tola-masterpiece/:mint_address
- * Get masterpiece details
- */
-router.get('/:mint_address', async (req: Request, res: Response) => {
-    try {
-        const { mint_address } = req.params;
-        
-        res.json({
-            success: true,
-            data: {
-                mint_address,
-                name: 'Unknown',
-                status: 'not_found'
-            },
-            version: '4.0.0'
-        });
-        
-    } catch (error: any) {
-        logger.error('[MASTERPIECE] Get error:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-/**
  * GET /api/tola-masterpiece/artist/:artist_id
- * Get all masterpieces for an artist
+ * Get all masterpieces for an artist — MUST be before /:mint_address to avoid shadowing
  */
 router.get('/artist/:artist_id', async (req: Request, res: Response) => {
     try {
         const { artist_id } = req.params;
-        
+
         res.json({
             success: true,
             data: {
@@ -119,9 +92,36 @@ router.get('/artist/:artist_id', async (req: Request, res: Response) => {
             },
             version: '4.0.0'
         });
-        
+
     } catch (error: any) {
         logger.error('[MASTERPIECE] Artist error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+/**
+ * GET /api/tola-masterpiece/:mint_address
+ * Get masterpiece details — wildcard param, must be AFTER all static GET routes
+ */
+router.get('/:mint_address', async (req: Request, res: Response) => {
+    try {
+        const { mint_address } = req.params;
+
+        res.json({
+            success: true,
+            data: {
+                mint_address,
+                name: 'Unknown',
+                status: 'not_found'
+            },
+            version: '4.0.0'
+        });
+
+    } catch (error: any) {
+        logger.error('[MASTERPIECE] Get error:', error);
         res.status(500).json({
             success: false,
             error: error.message
