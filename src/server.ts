@@ -80,6 +80,7 @@ import { rawBodyMiddleware } from './middleware/woo-hmac.middleware';
 
 // Capture raw body for webhook routes BEFORE JSON parsing
 app.use('/wc/webhooks', rawBodyMiddleware);
+app.use('/wp/webhooks', rawBodyMiddleware);
 app.use('/webhooks', rawBodyMiddleware);
 
 // Body parsing with size limits (for non-webhook routes)
@@ -131,8 +132,10 @@ const rateLimit = (maxRequests: number, windowMs: number) => {
 };
 
 // Apply rate limiting
-app.use('/api/', rateLimit(100, 60000)); // 100 req/min for API
-app.use('/wc/webhooks/', rateLimit(500, 60000)); // 500 req/min for webhooks
+app.use('/api/', rateLimit(100, 60000));           // 100 req/min for API
+app.use('/wc/webhooks/', rateLimit(500, 60000));   // 500 req/min for WC webhooks
+app.use('/wp/webhooks/', rateLimit(500, 60000));   // 500 req/min for WP webhooks
+app.use('/vault-analyze', rateLimit(60, 60000));   // 60 req/min for vault analysis
 
 // ============================================
 // ROUTE LOADING
@@ -171,6 +174,8 @@ const assetsRoutes = safeLoadRoute('assets', '/api/assets', () => require('./rou
 const tolaRoutes = safeLoadRoute('tola', '/tola', () => require('./routes/tola.routes').tolaRoutes);
 const wooCommerceRoutes = safeLoadRoute('woocommerce', '/wc', () => require('./routes/woocommerce.routes').wooCommerceRoutes);
 const usdcRoutes = safeLoadRoute('usdc', '/api/usdc', () => require('./routes/usdc.routes').usdcRoutes);
+const wpWebhookRoutes = safeLoadRoute('wp-webhooks', '/wp', () => require('./routes/wp-webhooks.routes').wpWebhookRoutes);
+const vaultRoutes = safeLoadRoute('vault', '/vault-analyze', () => require('./routes/vault.routes').vaultRoutes);
 
 // Mount routes
 if (nftRoutes) app.use('/api/nft', nftRoutes);
@@ -190,6 +195,8 @@ if (assetsRoutes) app.use('/api/assets', assetsRoutes);
 if (tolaRoutes) app.use('/tola', tolaRoutes);
 if (wooCommerceRoutes) app.use('/wc', wooCommerceRoutes);
 if (usdcRoutes) app.use('/api/usdc', usdcRoutes);
+if (wpWebhookRoutes) app.use('/wp', wpWebhookRoutes);
+if (vaultRoutes) app.use('/vault-analyze', vaultRoutes);
 
 // ============================================
 // SERVICE INITIALIZATION

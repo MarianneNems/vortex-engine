@@ -209,5 +209,36 @@ router.post('/webhooks/order-paid', validateWooCommerceWebhook, async (req: Requ
     }
 });
 
+/**
+ * POST /wc/webhooks/customer-created
+ * WooCommerce customer.created webhook — fires when a new WooCommerce customer is created.
+ * Companion to /wp/webhooks/user-registered (WC fires its own event for billing/shipping data).
+ */
+router.post('/webhooks/customer-created', validateWooCommerceWebhook, async (req: Request, res: Response) => {
+    try {
+        const customer = req.body;
+
+        logger.info(
+            `[WOO] customer-created  id=${customer.id}  email=${customer.email}  role=${customer.role ?? 'customer'}`
+        );
+
+        res.json({
+            success: true,
+            event: 'customer-created',
+            customer_id: customer.id ?? null,
+            email: customer.email ?? null,
+            received_at: new Date().toISOString(),
+        });
+
+    } catch (error) {
+        logger.error('[WOO] customer-created webhook error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to process customer-created webhook',
+            message: error instanceof Error ? error.message : 'Unknown error',
+        });
+    }
+});
+
 export { router as wooCommerceRoutes };
 
