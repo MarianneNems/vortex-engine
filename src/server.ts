@@ -176,6 +176,8 @@ const wooCommerceRoutes = safeLoadRoute('woocommerce', '/wc', () => require('./r
 const usdcRoutes = safeLoadRoute('usdc', '/api/usdc', () => require('./routes/usdc.routes').usdcRoutes);
 const wpWebhookRoutes = safeLoadRoute('wp-webhooks', '/wp', () => require('./routes/wp-webhooks.routes').wpWebhookRoutes);
 const vaultRoutes = safeLoadRoute('vault', '/vault-analyze', () => require('./routes/vault.routes').vaultRoutes);
+// Backward-compat: PHP callers use /api/tola/mint-nft, /api/tola/transfer, /api/tola/balance/:wallet, etc.
+const tolaCompatRoutes = safeLoadRoute('tola-compat', '/api/tola', () => require('./routes/tola-compat.routes').tolaCompatRoutes);
 
 // Mount routes
 if (nftRoutes) app.use('/api/nft', nftRoutes);
@@ -197,6 +199,7 @@ if (wooCommerceRoutes) app.use('/wc', wooCommerceRoutes);
 if (usdcRoutes) app.use('/api/usdc', usdcRoutes);
 if (wpWebhookRoutes) app.use('/wp', wpWebhookRoutes);
 if (vaultRoutes) app.use('/vault-analyze', vaultRoutes);
+if (tolaCompatRoutes) app.use('/api/tola', tolaCompatRoutes);
 
 // ============================================
 // SERVICE INITIALIZATION
