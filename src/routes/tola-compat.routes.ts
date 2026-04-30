@@ -42,6 +42,85 @@ try {
 }
 
 // ---------------------------------------------------------------------------
+// POST /api/tola/upload-metadata
+//
+// PHP sends: { metadata: { name, description, image, attributes, ... } }
+// PHP reads: $response['uri']  — Arweave/IPFS/local URI for the metadata JSON.
+//
+// Storage priority:
+//   1. Pinata IPFS  — PINATA_JWT env var
+//   2. NFT.storage  — NFTSTORAGE_API_KEY env var
+//   3. Local file   — served at GET /api/tola/metadata/:id (Railway ephemeral)
+// ---------------------------------------------------------------------------
+import { randomUUID } from 'crypto';
+import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'fs';
+import { join } from 'path';
+
+const METADATA_DIR = join(__dirname, '..', '..', 'metadata');
+try { mkdirSync(METADATA_DIR, { recursive: true }); } catch (_) {}
+
+const ENGINE_URL = process.env.VORTEX_ENGINE_URL ||
+    (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : 'https://vortex-engine-production.up.railway.app');
+
+async function storeMetadata(metadata: Record<string, unknown>): Promise<{ success: boolean; uri?: string; error?: string }> {
+    // Option 1: Pinata
+    const pinataJwt = process.env.PINATA_JWT;
+    if (pinataJwt) {
+        try {
+            const resp = await fetch('https://api.pinata.cloud/pinning/pinJSONToIPFS', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${pinataJwt}` },
+                body: JSON.stringify({ pinataContent: metadata, pinataMetadata: { name: String(metadata.name || 'TOLA Masterpiece') } })
+            });
+            const data: any = await resp.json();
+            if (data.IpfsHash) return { success: true, uri: `https://gateway.pinata.cloud/ipfs/${data.IpfsHash}` };
+        } catch (err: any) { logger.warn('[TOLA COMPAT] Pinata upload failed:', err.message); }
+    }
+    // Option 2: NFT.storage
+    const nftKey = process.env.NFTSTORAGE_API_KEY;
+    if (nftKey) {
+        try {
+            const resp = await fetch('https://api.nft.storage/upload', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${nftKey}` },
+                body: JSON.stringify(metadata)
+            });
+            const data: any = await resp.json();
+            if (data.ok && data.value?.cid) return { success: true, uri: `https://nftstorage.link/ipfs/${data.value.cid}` };
+        } catch (err: any) { logger.warn('[TOLA COMPAT] NFT.storage upload failed:', err.message); }
+    }
+    // Option 3: Local file served by this engine
+    const id = randomUUID();
+    writeFileSync(join(METADATA_DIR, `${id}.json`), JSON.stringify(metadata));
+    return { success: true, uri: `${ENGINE_URL}/api/tola/metadata/${id}` };
+}
+
+router.post('/upload-metadata', async (req: Request, res: Response) => {
+    try {
+        const { metadata } = req.body;
+        if (!metadata || !metadata.name) {
+            return res.status(400).json({ success: false, error: 'metadata.name is required' });
+        }
+        logger.info(`[TOLA COMPAT] upload-metadata: ${metadata.name}`);
+        const result = await storeMetadata(metadata);
+        return res.json(result);
+    } catch (err: any) {
+        logger.error('[TOLA COMPAT] upload-metadata error:', err.message);
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// GET /api/tola/metadata/:id  — serve locally stored metadata JSON
+router.get('/metadata/:id', (req: Request, res: Response) => {
+    const { id } = req.params;
+    if (!/^[a-f0-9-]{36}$/.test(id)) return res.status(400).json({ success: false, error: 'Invalid ID' });
+    const filePath = join(METADATA_DIR, `${id}.json`);
+    if (!existsSync(filePath)) return res.status(404).json({ success: false, error: 'Not found' });
+    res.setHeader('Content-Type', 'application/json');
+    res.send(readFileSync(filePath));
+});
+
+// ---------------------------------------------------------------------------
 // POST /api/tola/mint-nft
 //
 // PHP sends: { name, symbol, uri, recipient_wallet, seller_fee_basis_points, creators }
