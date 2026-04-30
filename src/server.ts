@@ -265,7 +265,7 @@ try {
                 }
             } catch {}
         }, 5000);
-    } else {
+        } else {
         console.log('[SERVICES] - TreasuryMonitor skipped (no treasury key)');
     }
 } catch (e: any) {
@@ -604,7 +604,7 @@ app.post('/api/tola/mint-nft', attachRequestId, mintRateLimiter, mintGating, asy
             seller_fee_basis_points: seller_fee_basis_points || sellerFeeBasisPoints || 500,
             creators: creators || metadata?.properties?.creators || undefined
         });
-
+        
         if (result.success) {
             res.status(201).json({
                 ...result,
@@ -961,7 +961,7 @@ app.listen(PORT, () => {
     // Royalty configuration display
     console.log(`\n💎 Royalty Configuration (IMMUTABLE):`);
     console.log(`   Rate: 5% (500 BPS) - LOCKED`);
-    console.log(`   Wallet: ${process.env.PLATFORM_COMMISSION_WALLET || '6VPLAVjote7Bqo96CbJ5kfrotkdU9BF3ACeqsJtcvH8g'}`);
+    console.log(`   Wallet: ${process.env.PLATFORM_COMMISSION_WALLET || 'EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz'}`);
     
     console.log(`\n${'─'.repeat(60)}`);
     console.log(`   Ready for requests - All systems operational`);

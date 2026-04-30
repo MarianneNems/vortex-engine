@@ -1,48 +1,45 @@
+"use strict";
 /**
  * Royalty Routes v4.0.0
- * 
+ *
  * IMMUTABLE 5% Royalty Enforcement API
- * 
+ *
  * Endpoints for:
  * - Platform royalty configuration (read-only)
  * - Royalty verification for mints
  * - Secondary sale royalty processing
  * - Royalty collection and distribution
  * - HURAII signature verification
- * 
+ *
  * SECURITY NOTICE:
  * The 5% royalty rate is PERMANENTLY LOCKED and cannot be changed.
  * All endpoints enforce this immutable rate.
- * 
+ *
  * @package VortexEngine
  * @version 4.0.0
  */
-
-import { Router, Request, Response } from 'express';
-import { logger } from '../utils/logger';
-import { authMiddleware } from '../middleware/auth.middleware';
-import { getRoyaltyService, ROYALTY_CONFIG } from '../services/royalty.service';
-
-const router = Router();
-
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const logger_1 = require("../utils/logger");
+const auth_middleware_1 = require("../middleware/auth.middleware");
+const royalty_service_1 = require("../services/royalty.service");
+const router = (0, express_1.Router)();
 // ============================================
 // IMMUTABLE ROYALTY CONFIGURATION
 // ============================================
-
 /**
  * GET /api/royalty/config
  * Get the IMMUTABLE royalty configuration
- * 
+ *
  * This configuration CANNOT be changed:
  * - Rate: 5% (0.05)
  * - BPS: 500
  * - Wallet: EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz
  */
-router.get('/config', async (req: Request, res: Response) => {
+router.get('/config', async (req, res) => {
     try {
-        const service = getRoyaltyService();
+        const service = (0, royalty_service_1.getRoyaltyService)();
         const config = service.getConfig();
-        
         res.json({
             success: true,
             data: {
@@ -62,21 +59,20 @@ router.get('/config', async (req: Request, res: Response) => {
             version: '4.0.0',
             timestamp: new Date().toISOString()
         });
-        
-    } catch (error: any) {
-        logger.error('[ROYALTY] Config error:', error);
+    }
+    catch (error) {
+        logger_1.logger.error('[ROYALTY] Config error:', error);
         res.status(500).json({
             success: false,
             error: error.message
         });
     }
 });
-
 /**
  * GET /api/royalty/rates
  * Get current royalty rates (IMMUTABLE)
  */
-router.get('/rates', async (req: Request, res: Response) => {
+router.get('/rates', async (req, res) => {
     res.json({
         success: true,
         data: {
@@ -108,92 +104,81 @@ router.get('/rates', async (req: Request, res: Response) => {
         timestamp: new Date().toISOString()
     });
 });
-
 // ============================================
 // ROYALTY VERIFICATION
 // ============================================
-
 /**
  * GET /api/royalty/verify/:mint
  * Verify royalty configuration for a mint
  */
-router.get('/verify/:mint', async (req: Request, res: Response) => {
+router.get('/verify/:mint', async (req, res) => {
     try {
         const { mint } = req.params;
-        const service = getRoyaltyService();
-        
+        const service = (0, royalty_service_1.getRoyaltyService)();
         const verification = await service.verifyMintRoyalty(mint);
-        
         res.json({
             success: true,
             data: verification,
             version: '4.0.0',
             timestamp: new Date().toISOString()
         });
-        
-    } catch (error: any) {
-        logger.error('[ROYALTY] Verify error:', error);
+    }
+    catch (error) {
+        logger_1.logger.error('[ROYALTY] Verify error:', error);
         res.status(500).json({
             success: false,
             error: error.message
         });
     }
 });
-
 /**
  * POST /api/royalty/verify-huraii
  * Verify HURAII signature on an image
  */
-router.post('/verify-huraii', async (req: Request, res: Response) => {
+router.post('/verify-huraii', async (req, res) => {
     try {
         const { attachment_id, signature_hash, image_url } = req.body;
-        const service = getRoyaltyService();
-        
+        const service = (0, royalty_service_1.getRoyaltyService)();
         const verification = await service.verifyHURAIISignature(attachment_id, signature_hash);
-        
         res.json({
             success: true,
             data: {
                 attachment_id,
                 ...verification,
                 royalty_wallet: service.getRoyaltyWallet(),
-                message: verification.huraii_authentic 
+                message: verification.huraii_authentic
                     ? 'Image is authentic HURAII generation - 5% royalty enforced'
                     : 'Image signature could not be verified'
             },
             version: '4.0.0',
             timestamp: new Date().toISOString()
         });
-        
-    } catch (error: any) {
-        logger.error('[ROYALTY] Verify HURAII error:', error);
+    }
+    catch (error) {
+        logger_1.logger.error('[ROYALTY] Verify HURAII error:', error);
         res.status(500).json({
             success: false,
             error: error.message
         });
     }
 });
-
 // ============================================
 // MINT RECORDING
 // ============================================
-
 /**
  * POST /api/royalty/record-mint
  * Record a new mint with IMMUTABLE royalty
  */
-router.post('/record-mint', authMiddleware, async (req: Request, res: Response) => {
+router.post('/record-mint', auth_middleware_1.authMiddleware, async (req, res) => {
     try {
         const { mint_address, user_id, seller_fee_basis_points, creators, huraii_signature } = req.body;
-        
         if (!mint_address || !user_id) {
             return res.status(400).json({
                 success: false,
                 error: 'mint_address and user_id are required'
             });
         }
-        
-        const service = getRoyaltyService();
+        const service = (0, royalty_service_1.getRoyaltyService)();
         const result = await service.recordMint({
             mint_address,
             user_id,
@@ -201,50 +186,38 @@ router.post('/record-mint', authMiddleware, async (req: Request, res: Response) 
             creators: creators || [],
             huraii_signature
         });
-        
         res.status(result.success ? 201 : 400).json({
             ...result,
             version: '4.0.0',
             timestamp: new Date().toISOString()
         });
-        
-    } catch (error: any) {
-        logger.error('[ROYALTY] Record mint error:', error);
+    }
+    catch (error) {
+        logger_1.logger.error('[ROYALTY] Record mint error:', error);
         res.status(500).json({
             success: false,
             error: error.message
         });
     }
 });
-
 // ============================================
 // SECONDARY SALE PROCESSING
 // ============================================
-
 /**
  * POST /api/royalty/sale
  * Process a secondary sale
  */
-router.post('/sale', async (req: Request, res: Response) => {
+router.post('/sale', async (req, res) => {
     try {
         const { mint_address, sale_signature, sale_amount, buyer, seller } = req.body;
-        
         if (!mint_address || !sale_signature || !sale_amount) {
             return res.status(400).json({
                 success: false,
                 error: 'mint_address, sale_signature, and sale_amount are required'
             });
         }
-        
-        const service = getRoyaltyService();
-        const payment = await service.processSecondarySale(
-            mint_address,
-            sale_signature,
-            parseFloat(sale_amount),
-            buyer,
-            seller
-        );
-        
+        const service = (0, royalty_service_1.getRoyaltyService)();
+        const payment = await service.processSecondarySale(mint_address, sale_signature, parseFloat(sale_amount), buyer, seller);
         res.status(201).json({
             success: true,
             data: payment,
@@ -252,30 +225,26 @@ router.post('/sale', async (req: Request, res: Response) => {
             version: '4.0.0',
             timestamp: new Date().toISOString()
         });
-        
-    } catch (error: any) {
-        logger.error('[ROYALTY] Sale error:', error);
+    }
+    catch (error) {
+        logger_1.logger.error('[ROYALTY] Sale error:', error);
         res.status(500).json({
             success: false,
             error: error.message
         });
     }
 });
-
 /**
  * POST /api/royalty/collect
  * Collect pending royalty payment
  */
-router.post('/collect', authMiddleware, async (req: Request, res: Response) => {
+router.post('/collect', auth_middleware_1.authMiddleware, async (req, res) => {
     try {
         const { payment_id, mint_address, sale_signature, amount, wallet } = req.body;
-        
-        const service = getRoyaltyService();
-        
+        const service = (0, royalty_service_1.getRoyaltyService)();
         // If payment_id provided, collect specific payment
         if (payment_id) {
             const result = await service.collectRoyalty(payment_id);
-            
             return res.json({
                 success: result.success,
                 data: result,
@@ -283,7 +252,6 @@ router.post('/collect', authMiddleware, async (req: Request, res: Response) => {
                 timestamp: new Date().toISOString()
             });
         }
-        
         // Otherwise, process as new sale and collect
         if (!mint_address || !sale_signature || !amount) {
             return res.status(400).json({
@@ -291,17 +259,8 @@ router.post('/collect', authMiddleware, async (req: Request, res: Response) => {
                 error: 'payment_id or (mint_address, sale_signature, amount) required'
             });
         }
-        
-        const payment = await service.processSecondarySale(
-            mint_address,
-            sale_signature,
-            parseFloat(amount),
-            '',
-            ''
-        );
-        
+        const payment = await service.processSecondarySale(mint_address, sale_signature, parseFloat(amount), '', '');
         const collection = await service.collectRoyalty(payment.id);
-        
         res.json({
             success: collection.success,
             data: {
@@ -311,75 +270,61 @@ router.post('/collect', authMiddleware, async (req: Request, res: Response) => {
             version: '4.0.0',
             timestamp: new Date().toISOString()
         });
-        
-    } catch (error: any) {
-        logger.error('[ROYALTY] Collect error:', error);
+    }
+    catch (error) {
+        logger_1.logger.error('[ROYALTY] Collect error:', error);
         res.status(500).json({
             success: false,
             error: error.message
         });
     }
 });
-
 /**
  * POST /api/royalty/distribute
  * Distribute royalty from a sale
  */
-router.post('/distribute', authMiddleware, async (req: Request, res: Response) => {
+router.post('/distribute', auth_middleware_1.authMiddleware, async (req, res) => {
     try {
         const { mint_address, sale_amount, recipients, payment_id, amount, recipient } = req.body;
-        
-        const service = getRoyaltyService();
-        
+        const service = (0, royalty_service_1.getRoyaltyService)();
         // Handle different payload formats from WordPress
         const actualMint = mint_address || payment_id;
         const actualAmount = parseFloat(sale_amount || amount || '0');
         const actualRecipients = recipients || [{ address: recipient, share: 100 }];
-        
         if (!actualMint || !actualAmount) {
             return res.status(400).json({
                 success: false,
                 error: 'mint_address and sale_amount are required'
             });
         }
-        
-        const result = await service.distributeRoyalty(
-            actualMint,
-            actualAmount,
-            actualRecipients
-        );
-        
+        const result = await service.distributeRoyalty(actualMint, actualAmount, actualRecipients);
         res.json({
             success: result.success,
             data: result.distributions,
             version: '4.0.0',
             timestamp: new Date().toISOString()
         });
-        
-    } catch (error: any) {
-        logger.error('[ROYALTY] Distribute error:', error);
+    }
+    catch (error) {
+        logger_1.logger.error('[ROYALTY] Distribute error:', error);
         res.status(500).json({
             success: false,
             error: error.message
         });
     }
 });
-
 // ============================================
 // ARTIST ROYALTY ENDPOINTS
 // ============================================
-
 /**
  * GET /api/royalty/earnings/:artist_id
  * Get artist royalty earnings
  */
-router.get('/earnings/:artist_id', async (req: Request, res: Response) => {
+router.get('/earnings/:artist_id', async (req, res) => {
     try {
         const { artist_id } = req.params;
         const { period = '30d' } = req.query;
-        
-        const service = getRoyaltyService();
-        
+        const service = (0, royalty_service_1.getRoyaltyService)();
         res.json({
             success: true,
             data: {
@@ -399,64 +344,58 @@ router.get('/earnings/:artist_id', async (req: Request, res: Response) => {
             version: '4.0.0',
             timestamp: new Date().toISOString()
         });
-        
-    } catch (error: any) {
-        logger.error('[ROYALTY] Earnings error:', error);
+    }
+    catch (error) {
+        logger_1.logger.error('[ROYALTY] Earnings error:', error);
         res.status(500).json({
             success: false,
             error: error.message
         });
     }
 });
-
 /**
  * GET /api/royalty/history/:artist_id
  * Get royalty payment history
  */
-router.get('/history/:artist_id', async (req: Request, res: Response) => {
+router.get('/history/:artist_id', async (req, res) => {
     try {
         const { artist_id } = req.params;
         const { limit = 50, offset = 0 } = req.query;
-        
         res.json({
             success: true,
             data: {
                 artist_id: parseInt(artist_id),
                 payments: [],
                 total: 0,
-                limit: parseInt(limit as string),
-                offset: parseInt(offset as string)
+                limit: parseInt(limit),
+                offset: parseInt(offset)
             },
             version: '4.0.0',
             timestamp: new Date().toISOString()
         });
-        
-    } catch (error: any) {
-        logger.error('[ROYALTY] History error:', error);
+    }
+    catch (error) {
+        logger_1.logger.error('[ROYALTY] History error:', error);
         res.status(500).json({
             success: false,
             error: error.message
         });
     }
 });
-
 /**
  * POST /api/royalty/request-payout
  * Request royalty payout
  */
-router.post('/request-payout', authMiddleware, async (req: Request, res: Response) => {
+router.post('/request-payout', auth_middleware_1.authMiddleware, async (req, res) => {
     try {
         const { artist_id, wallet_address, amount_usdc } = req.body;
-        
         if (!artist_id || !wallet_address) {
             return res.status(400).json({
                 success: false,
                 error: 'Missing artist_id or wallet_address'
             });
         }
-        
-        logger.info(`[ROYALTY] Payout request: artist ${artist_id}, ${amount_usdc} USDC`);
-        
+        logger_1.logger.info(`[ROYALTY] Payout request: artist ${artist_id}, ${amount_usdc} USDC`);
         res.json({
             success: true,
             data: {
@@ -470,54 +409,49 @@ router.post('/request-payout', authMiddleware, async (req: Request, res: Respons
             version: '4.0.0',
             timestamp: new Date().toISOString()
         });
-        
-    } catch (error: any) {
-        logger.error('[ROYALTY] Payout request error:', error);
+    }
+    catch (error) {
+        logger_1.logger.error('[ROYALTY] Payout request error:', error);
         res.status(500).json({
             success: false,
             error: error.message
         });
     }
 });
-
 // ============================================
 // STATISTICS & HEALTH
 // ============================================
-
 /**
  * GET /api/royalty/stats
  * Get royalty statistics
  */
-router.get('/stats', async (req: Request, res: Response) => {
+router.get('/stats', async (req, res) => {
     try {
-        const service = getRoyaltyService();
+        const service = (0, royalty_service_1.getRoyaltyService)();
         const stats = service.getStats();
-        
         res.json({
             success: true,
             data: stats,
             version: '4.0.0',
             timestamp: new Date().toISOString()
         });
-        
-    } catch (error: any) {
-        logger.error('[ROYALTY] Stats error:', error);
+    }
+    catch (error) {
+        logger_1.logger.error('[ROYALTY] Stats error:', error);
         res.status(500).json({
             success: false,
             error: error.message
         });
     }
 });
-
 /**
  * GET /api/royalty/pending
  * Get pending royalty payments
  */
-router.get('/pending', authMiddleware, async (req: Request, res: Response) => {
+router.get('/pending', auth_middleware_1.authMiddleware, async (req, res) => {
     try {
-        const service = getRoyaltyService();
+        const service = (0, royalty_service_1.getRoyaltyService)();
         const pending = service.getPendingPayments();
-        
         res.json({
             success: true,
             data: {
@@ -528,25 +462,23 @@ router.get('/pending', authMiddleware, async (req: Request, res: Response) => {
             version: '4.0.0',
             timestamp: new Date().toISOString()
         });
-        
-    } catch (error: any) {
-        logger.error('[ROYALTY] Pending error:', error);
+    }
+    catch (error) {
+        logger_1.logger.error('[ROYALTY] Pending error:', error);
         res.status(500).json({
             success: false,
             error: error.message
         });
     }
 });
-
 /**
  * GET /api/royalty/health
  * Royalty service health check
  */
-router.get('/health', async (req: Request, res: Response) => {
+router.get('/health', async (req, res) => {
     try {
-        const service = getRoyaltyService();
+        const service = (0, royalty_service_1.getRoyaltyService)();
         const health = await service.getHealth();
-        
         res.json({
             success: true,
             service: 'royalty',
@@ -554,8 +486,8 @@ router.get('/health', async (req: Request, res: Response) => {
             version: '4.0.0',
             timestamp: new Date().toISOString()
         });
-        
-    } catch (error: any) {
+    }
+    catch (error) {
         res.status(503).json({
             success: false,
             service: 'royalty',
@@ -564,32 +496,20 @@ router.get('/health', async (req: Request, res: Response) => {
         });
     }
 });
-
 // ============================================
 // WEBHOOK ENDPOINT FOR SECONDARY SALES
 // ============================================
-
 /**
  * POST /api/royalty/webhook/sale
  * Webhook for secondary sale notifications (from indexers like Helius)
  */
-router.post('/webhook/sale', async (req: Request, res: Response) => {
+router.post('/webhook/sale', async (req, res) => {
     try {
         const { type, nft, signature, amount, buyer, seller, source } = req.body;
-        
-        logger.info(`[ROYALTY WEBHOOK] ${type}: ${nft?.mint || 'unknown'}`);
-        
+        logger_1.logger.info(`[ROYALTY WEBHOOK] ${type}: ${nft?.mint || 'unknown'}`);
         if (type === 'NFT_SALE' && nft?.mint) {
-            const service = getRoyaltyService();
-            
-            const payment = await service.processSecondarySale(
-                nft.mint,
-                signature,
-                parseFloat(amount || '0'),
-                buyer,
-                seller
-            );
-            
+            const service = (0, royalty_service_1.getRoyaltyService)();
+            const payment = await service.processSecondarySale(nft.mint, signature, parseFloat(amount || '0'), buyer, seller);
             return res.json({
                 success: true,
                 message: 'Sale processed',
@@ -599,16 +519,15 @@ router.post('/webhook/sale', async (req: Request, res: Response) => {
                 }
             });
         }
-        
         res.json({ success: true, message: 'Webhook received' });
-        
-    } catch (error: any) {
-        logger.error('[ROYALTY WEBHOOK] Error:', error);
+    }
+    catch (error) {
+        logger_1.logger.error('[ROYALTY WEBHOOK] Error:', error);
         res.status(500).json({
             success: false,
             error: error.message
         });
     }
 });
-
-export default router;
+exports.default = router;
+//# sourceMappingURL=royalty.routes.js.map
