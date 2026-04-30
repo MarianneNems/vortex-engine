@@ -64,7 +64,7 @@ const TOKEN_METADATA_PROGRAM_ID = new web3_js_1.PublicKey('metaqbxxUerdq28cj1RbA
 const IMMUTABLE_ROYALTY = {
     BPS: 2000, // 20% total (5% creator + 15% participants) - PERMANENTLY LOCKED
     RATE: 0.20, // 20% as decimal
-    WALLET: process.env.PLATFORM_COMMISSION_WALLET || 'EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz',
+    WALLET: process.env.SYSTEM_CREATOR_ROYALTY_WALLET || 'EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz',
     IMMUTABLE: true,
     LOCKED_DATE: '2026-01-22'
 };

@@ -29,7 +29,7 @@ const ROYALTY_CONFIG = {
     PLATFORM_ROYALTY_BPS: 500, // 500 basis points - IMMUTABLE
     MIN_ROYALTY_BPS: 500, // Minimum allowed - IMMUTABLE
     // Platform wallet for royalty collection
-    PLATFORM_ROYALTY_WALLET: process.env.PLATFORM_COMMISSION_WALLET || 'EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz',
+    PLATFORM_ROYALTY_WALLET: process.env.SYSTEM_CREATOR_ROYALTY_WALLET || 'EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz',
     // Secondary sale configuration
     SECONDARY_SALE_ROYALTY_BPS: 2000, // 20% total on secondary sales
     PLATFORM_SHARE_OF_ROYALTY: 0.25, // Platform gets 25% of royalty (5% of 20%)

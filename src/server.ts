@@ -961,7 +961,7 @@ app.listen(PORT, () => {
     // Royalty configuration display
     console.log(`\n💎 Royalty Configuration (IMMUTABLE):`);
     console.log(`   Rate: 5% (500 BPS) - LOCKED`);
-    console.log(`   Wallet: ${process.env.PLATFORM_COMMISSION_WALLET || 'EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz'}`);
+    console.log(`   Wallet: ${process.env.SYSTEM_CREATOR_ROYALTY_WALLET || 'EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz'}`);
     
     console.log(`\n${'─'.repeat(60)}`);
     console.log(`   Ready for requests - All systems operational`);

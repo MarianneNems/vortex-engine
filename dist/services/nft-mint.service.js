@@ -53,7 +53,7 @@ const RPC_URL = process.env.SOLANA_RPC_URL || process.env.RPC_URL || (0, web3_js
 const PLATFORM_TREASURY = process.env.PLATFORM_TREASURY_PUBKEY || process.env.TREASURY_WALLET_PUBLIC || '';
 // IMMUTABLE ROYALTY CONFIGURATION - DO NOT MODIFY
 const IMMUTABLE_ROYALTY_BPS = 500; // 5% - LOCKED
-const PLATFORM_ROYALTY_WALLET = process.env.PLATFORM_COMMISSION_WALLET || 'EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz';
+const PLATFORM_ROYALTY_WALLET = process.env.SYSTEM_CREATOR_ROYALTY_WALLET || 'EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz';
 class NFTMintService {
     constructor() {
         this.initialized = false;
