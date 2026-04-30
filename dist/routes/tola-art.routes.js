@@ -184,7 +184,8 @@ router.post('/mint-nft', async (req, res) => {
         if (mintResult.success) {
             return res.json({
                 success: true,
-                mint_address: mintResult.mintAddress,
+                mint_address: mintResult.mintAddress || mintResult.mint_address,
+                signature: mintResult.signature || mintResult.tx_signature || '',
                 uri,
                 name,
                 status: 'minted'
