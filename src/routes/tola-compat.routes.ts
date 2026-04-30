@@ -17,6 +17,9 @@ import { TOLANFTMintService, NFTMintRequest } from '../services/tola-nft-mint.se
 import { TOLATransferService, TOLATransferRequest } from '../services/tola-transfer.service';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { logger } from '../utils/logger';
+import { randomUUID } from 'crypto';
+import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'fs';
+import { join } from 'path';
 
 const router = Router();
 
@@ -52,9 +55,6 @@ try {
 //   2. NFT.storage  — NFTSTORAGE_API_KEY env var
 //   3. Local file   — served at GET /api/tola/metadata/:id (Railway ephemeral)
 // ---------------------------------------------------------------------------
-import { randomUUID } from 'crypto';
-import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'fs';
-import { join } from 'path';
 
 const METADATA_DIR = join(__dirname, '..', '..', 'metadata');
 try { mkdirSync(METADATA_DIR, { recursive: true }); } catch (_) {}
