@@ -178,6 +178,9 @@ const wpWebhookRoutes = safeLoadRoute('wp-webhooks', '/wp', () => require('./rou
 const vaultRoutes = safeLoadRoute('vault', '/vault-analyze', () => require('./routes/vault.routes').vaultRoutes);
 // Backward-compat: PHP callers use /api/tola/mint-nft, /api/tola/transfer, /api/tola/balance/:wallet, etc.
 const tolaCompatRoutes = safeLoadRoute('tola-compat', '/api/tola', () => require('./routes/tola-compat.routes').tolaCompatRoutes);
+// Storyboard multi-image film composer (FFmpeg). Best-practice host because the
+// engine already has Node, storage, and the local-file URL pattern.
+const storyboardComposeRoutes = safeLoadRoute('storyboard-compose', '/api/storyboard', () => require('./routes/storyboard-compose.routes').storyboardComposeRoutes);
 
 // Mount routes
 if (nftRoutes) app.use('/api/nft', nftRoutes);
@@ -200,6 +203,7 @@ if (usdcRoutes) app.use('/api/usdc', usdcRoutes);
 if (wpWebhookRoutes) app.use('/wp', wpWebhookRoutes);
 if (vaultRoutes) app.use('/vault-analyze', vaultRoutes);
 if (tolaCompatRoutes) app.use('/api/tola', tolaCompatRoutes);
+if (storyboardComposeRoutes) app.use('/api/storyboard', storyboardComposeRoutes);
 
 // ============================================
 // SERVICE INITIALIZATION
