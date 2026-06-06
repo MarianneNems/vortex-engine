@@ -22,7 +22,8 @@ import {
     sendAndConfirmTransaction,
     SystemProgram,
     LAMPORTS_PER_SOL,
-    ComputeBudgetProgram
+    ComputeBudgetProgram,
+    TransactionInstruction
 } from '@solana/web3.js';
 import {
     createMint,
@@ -252,6 +253,63 @@ export class TOLANFTMintService {
     }
 
     /**
+     * Hand-built CreateMetadataAccountV3 instruction.
+     *
+     * mpl-token-metadata v3 ships umi-only builders, so we serialize the
+     * instruction directly for the @solana/web3.js Transaction. This is the
+     * step that was MISSING — without it the mint is a bare SPL token with no
+     * name/image/creators/royalty. With it, each TOLA Masterpiece becomes a
+     * real on-chain NFT carrying the 20% seller-fee royalty (5% creator + 15%
+     * participants) in its creators array.
+     *
+     * DataV2 + CreateMetadataAccountV3Args borsh layout (Token Metadata program).
+     */
+    private buildCreateMetadataV3Ix(p: {
+        metadata: PublicKey; mint: PublicKey; mintAuthority: PublicKey; payer: PublicKey; updateAuthority: PublicKey;
+        name: string; symbol: string; uri: string; sellerFeeBasisPoints: number;
+        creators: Array<{ address: PublicKey; verified: boolean; share: number }>;
+    }): TransactionInstruction {
+        const borshStr = (s: string): Buffer => {
+            const b = Buffer.from(s, 'utf8');
+            const len = Buffer.alloc(4); len.writeUInt32LE(b.length, 0);
+            return Buffer.concat([len, b]);
+        };
+        const parts: Buffer[] = [];
+        parts.push(Buffer.from([33]));                                   // CreateMetadataAccountV3 discriminator
+        parts.push(borshStr((p.name || '').slice(0, 32)));              // name (max 32)
+        parts.push(borshStr((p.symbol || '').slice(0, 10)));           // symbol (max 10)
+        parts.push(borshStr((p.uri || '').slice(0, 200)));            // uri (max 200)
+        const fee = Buffer.alloc(2);
+        fee.writeUInt16LE(Math.max(0, Math.min(10000, p.sellerFeeBasisPoints | 0)), 0);
+        parts.push(fee);                                                // sellerFeeBasisPoints (u16)
+        if (p.creators && p.creators.length) {                          // creators: Option<Vec<Creator>>
+            parts.push(Buffer.from([1]));
+            const cnt = Buffer.alloc(4); cnt.writeUInt32LE(p.creators.length, 0); parts.push(cnt);
+            for (const c of p.creators) {
+                parts.push(c.address.toBuffer());                       // pubkey (32)
+                parts.push(Buffer.from([c.verified ? 1 : 0]));          // verified (bool)
+                parts.push(Buffer.from([c.share & 0xff]));              // share (u8)
+            }
+        } else {
+            parts.push(Buffer.from([0]));
+        }
+        parts.push(Buffer.from([0]));                                   // collection: None
+        parts.push(Buffer.from([0]));                                   // uses: None
+        parts.push(Buffer.from([1]));                                   // isMutable: true
+        parts.push(Buffer.from([0]));                                   // collectionDetails: None
+        const data = Buffer.concat(parts);
+        const keys = [
+            { pubkey: p.metadata,        isSigner: false, isWritable: true },
+            { pubkey: p.mint,            isSigner: false, isWritable: false },
+            { pubkey: p.mintAuthority,   isSigner: true,  isWritable: false },
+            { pubkey: p.payer,           isSigner: true,  isWritable: true },
+            { pubkey: p.updateAuthority, isSigner: false, isWritable: false },
+            { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+        ];
+        return new TransactionInstruction({ programId: TOKEN_METADATA_PROGRAM_ID, keys, data });
+    }
+
+    /**
      * Mint a new NFT
      */
     async mintNFT(request: NFTMintRequest): Promise<NFTMintResult> {
@@ -396,10 +454,26 @@ export class TOLANFTMintService {
 
             logger.info(`[NFT Service] Royalty: ${IMMUTABLE_ROYALTY.BPS} BPS (20%: 5% creator + 15% participants) → ${IMMUTABLE_ROYALTY.WALLET} - IMMUTABLE`);
             
-            // Create metadata instruction (using Metaplex)
-            // Note: Full implementation requires @metaplex-foundation/mpl-token-metadata
-            // This is a simplified version that creates the basic structure
-            
+            // Create the Metaplex Token Metadata account (CreateMetadataAccountV3).
+            // THIS WAS THE MISSING STEP: without it the mint is a bare SPL token
+            // (no name/image/creators/royalty). Attaches name, image URI, the
+            // creators array, and the 20% seller-fee royalty (5% creator + 15%
+            // participants) so each Masterpiece is a real, royalty-bearing NFT.
+            transaction.add(
+                this.buildCreateMetadataV3Ix({
+                    metadata:        metadataAddress,
+                    mint:            mintAddress,
+                    mintAuthority:   this.treasuryKeypair.publicKey,
+                    payer:           this.treasuryKeypair.publicKey,
+                    updateAuthority: this.treasuryKeypair.publicKey,
+                    name:            request.name,
+                    symbol:          'TOLA',
+                    uri:             request.uri,
+                    sellerFeeBasisPoints: request.seller_fee_basis_points ?? IMMUTABLE_ROYALTY.BPS,
+                    creators:        creators.map(c => ({ address: c.address, verified: c.verified, share: c.share })),
+                })
+            );
+
             // Get recent blockhash
             const { blockhash } = await connection.getLatestBlockhash('confirmed');
             transaction.recentBlockhash = blockhash;
