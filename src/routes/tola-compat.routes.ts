@@ -17,8 +17,8 @@ import { TOLANFTMintService, NFTMintRequest } from '../services/tola-nft-mint.se
 import { TOLATransferService, TOLATransferRequest } from '../services/tola-transfer.service';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { logger } from '../utils/logger';
-import { randomUUID } from 'crypto';
-import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'fs';
+import { createHash } from 'crypto';
+import { mkdirSync, readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 
 const router = Router();
@@ -48,12 +48,14 @@ try {
 // POST /api/tola/upload-metadata
 //
 // PHP sends: { metadata: { name, description, image, attributes, ... } }
-// PHP reads: $response['uri']  — Arweave/IPFS/local URI for the metadata JSON.
+// PHP reads: $response['uri']  — a permanent ipfs:// URI for the metadata JSON.
 //
 // Storage priority:
 //   1. Pinata IPFS  — PINATA_JWT env var
 //   2. NFT.storage  — NFTSTORAGE_API_KEY env var
-//   3. Local file   — served at GET /api/tola/metadata/:id (Railway ephemeral)
+//   3. (none) — there is deliberately NO third option. This used to fall back to a file on
+//      this Railway instance, which made a missing key look like a successful upload.
+//      Permanent storage is now required and the call fails closed without it.
 // ---------------------------------------------------------------------------
 
 const METADATA_DIR = join(__dirname, '..', '..', 'metadata');
@@ -62,7 +64,7 @@ try { mkdirSync(METADATA_DIR, { recursive: true }); } catch (_) {}
 const ENGINE_URL = process.env.VORTEX_ENGINE_URL ||
     (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : 'https://vortex-engine-production.up.railway.app');
 
-async function storeMetadata(metadata: Record<string, unknown>): Promise<{ success: boolean; uri?: string; error?: string }> {
+async function storeMetadata(metadata: Record<string, unknown>): Promise<{ success: boolean; uri?: string; cid?: string; error?: string }> {
     // Option 1: Pinata
     const pinataJwt = process.env.PINATA_JWT;
     if (pinataJwt) {
@@ -73,7 +75,9 @@ async function storeMetadata(metadata: Record<string, unknown>): Promise<{ succe
                 body: JSON.stringify({ pinataContent: metadata, pinataMetadata: { name: String(metadata.name || 'TOLA Masterpiece') } })
             });
             const data: any = await resp.json();
-            if (data.IpfsHash) return { success: true, uri: `https://gateway.pinata.cloud/ipfs/${data.IpfsHash}` };
+            // Store the canonical ipfs:// CID, not the gateway URL. A gateway host can be retired
+            // or blocked; the CID is the content itself and stays resolvable through any gateway.
+            if (data.IpfsHash) return { success: true, uri: `ipfs://${data.IpfsHash}`, cid: data.IpfsHash };
         } catch (err: any) { logger.warn('[TOLA COMPAT] Pinata upload failed:', err.message); }
     }
     // Option 2: NFT.storage
@@ -86,13 +90,38 @@ async function storeMetadata(metadata: Record<string, unknown>): Promise<{ succe
                 body: JSON.stringify(metadata)
             });
             const data: any = await resp.json();
-            if (data.ok && data.value?.cid) return { success: true, uri: `https://nftstorage.link/ipfs/${data.value.cid}` };
+            if (data.ok && data.value?.cid) return { success: true, uri: `ipfs://${data.value.cid}`, cid: data.value.cid };
         } catch (err: any) { logger.warn('[TOLA COMPAT] NFT.storage upload failed:', err.message); }
     }
-    // Option 3: Local file served by this engine
-    const id = randomUUID();
-    writeFileSync(join(METADATA_DIR, `${id}.json`), JSON.stringify(metadata));
-    return { success: true, uri: `${ENGINE_URL}/api/tola/metadata/${id}` };
+    // NO local fallback. This used to write a file served from this Railway instance and return
+    // success, so a missing PINATA_JWT produced an ephemeral URI while reporting that permanent
+    // storage had worked. All 138 TOLA metadata URIs ended up on that path and some already 404.
+    //
+    // An NFT whose metadata can disappear is not an NFT, so this now fails closed.
+    logger.error('[TOLA COMPAT] Permanent storage unavailable - refusing to return a mutable URI');
+    return {
+        success: false,
+        error: 'permanent_storage_unavailable: configure PINATA_JWT or NFTSTORAGE_API_KEY. ' +
+               'Railway-local and WordPress URLs are not acceptable for NFT metadata.',
+    };
+}
+
+/**
+ * Fetch an object back from storage and hash it, to prove it is really retrievable.
+ *
+ * Upload success is the provider's claim about itself. This is the independent read: it fetches
+ * through the gateway a wallet would use, and returns the SHA-256 of what actually came back, so
+ * the caller can compare it against the bytes it meant to store.
+ */
+async function retrieveAndHash(uri: string): Promise<{ ok: boolean; sha256?: string; bytes?: number; error?: string }> {
+    try {
+        const resp = await fetch(uri, { redirect: 'follow' });
+        if (!resp.ok) { return { ok: false, error: `http_${resp.status}` }; }
+        const buf = Buffer.from(await resp.arrayBuffer());
+        return { ok: true, sha256: createHash('sha256').update(buf).digest('hex'), bytes: buf.length };
+    } catch (err: any) {
+        return { ok: false, error: err?.message || String(err) };
+    }
 }
 
 router.post('/upload-metadata', async (req: Request, res: Response) => {
