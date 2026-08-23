@@ -44,17 +44,22 @@ import { logger } from '../utils/logger';
 // Metaplex Token Metadata Program
 const TOKEN_METADATA_PROGRAM_ID = new PublicKey('metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s');
 
-// IMMUTABLE ROYALTY CONFIGURATION - DO NOT MODIFY
+// VORTEX ROYALTY CONFIGURATION (reconciled 2026-06-18, founder-approved 5% model).
+// Single, unambiguous model: total on-chain royalty = 5% (sellerFeeBasisPoints=500),
+// 100% of that 5% to the VORTEX royalty wallet. Matches what WordPress already sends
+// (create_nft_contract -> seller_fee_basis_points: 500). The prior 20% / 25-share split
+// is intentionally removed. Artist attribution is preserved via the creators array
+// (share=0, attribution-only) plus the metadata JSON attributes (off-chain uri).
 const IMMUTABLE_ROYALTY = {
-    BPS: 2000,          // 20% total (5% creator + 15% participants) - PERMANENTLY LOCKED
-    RATE: 0.20,         // 20% as decimal
+    BPS: 500,           // 5% total on-chain royalty - VORTEX
+    RATE: 0.05,         // 5% as decimal
     WALLET: process.env.SYSTEM_CREATOR_ROYALTY_WALLET || 'EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz',
     IMMUTABLE: true,
-    LOCKED_DATE: '2026-01-22'
+    LOCKED_DATE: '2026-06-18'
 } as const;
 
-// Verify immutability
-if (IMMUTABLE_ROYALTY.BPS !== 2000 || IMMUTABLE_ROYALTY.RATE !== 0.20) {
+// Verify the reconciled 5% model has not been tampered with.
+if (IMMUTABLE_ROYALTY.BPS !== 500 || IMMUTABLE_ROYALTY.RATE !== 0.05) {
     throw new Error('[TOLA NFT SERVICE] CRITICAL: Royalty configuration has been tampered with!');
 }
 
@@ -268,6 +273,7 @@ export class TOLANFTMintService {
         metadata: PublicKey; mint: PublicKey; mintAuthority: PublicKey; payer: PublicKey; updateAuthority: PublicKey;
         name: string; symbol: string; uri: string; sellerFeeBasisPoints: number;
         creators: Array<{ address: PublicKey; verified: boolean; share: number }>;
+        collection?: PublicKey;
     }): TransactionInstruction {
         const borshStr = (s: string): Buffer => {
             const b = Buffer.from(s, 'utf8');
@@ -293,7 +299,16 @@ export class TOLANFTMintService {
         } else {
             parts.push(Buffer.from([0]));
         }
-        parts.push(Buffer.from([0]));                                   // collection: None
+        if (p.collection) {                                             // collection: Option<Collection>
+            parts.push(Buffer.from([1]));
+            // verified=false here ALWAYS. Only the collection authority can flip this, via a
+            // separate VerifySizedCollectionItem instruction. Writing true here would be a claim
+            // the program never checked, and indexers would show an unverified item as verified.
+            parts.push(Buffer.from([0]));                               // verified (bool)
+            parts.push(p.collection.toBuffer());                        // key (pubkey)
+        } else {
+            parts.push(Buffer.from([0]));                               // collection: None
+        }
         parts.push(Buffer.from([0]));                                   // uses: None
         parts.push(Buffer.from([1]));                                   // isMutable: true
         parts.push(Buffer.from([0]));                                   // collectionDetails: None
@@ -307,6 +322,259 @@ export class TOLANFTMintService {
             { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
         ];
         return new TransactionInstruction({ programId: TOKEN_METADATA_PROGRAM_ID, keys, data });
+    }
+
+    /**
+     * Hand-built CreateMasterEditionV3 instruction (discriminator 17).
+     *
+     * This is what makes a token read as `NonFungible` rather than `Custom`. Metadata alone is not
+     * enough: without a Master Edition, indexers and wallets classify the token as a plain SPL
+     * token, which is exactly why 79 TOLA mints show under Tokens instead of Collectibles.
+     *
+     * maxSupply = Some(0) means no prints may ever be struck, so the 1/1 stays a 1/1.
+     *
+     * The layout and account order below were read from the installed
+     * @metaplex-foundation/mpl-token-metadata generated builder, not from memory.
+     *
+     * NOTE: this instruction moves the mint authority to the edition PDA. That transfer is
+     * inherent to creating a Master Edition and cannot be deferred to a later step.
+     */
+    private buildCreateMasterEditionV3Ix(p: {
+        edition: PublicKey; mint: PublicKey; updateAuthority: PublicKey; mintAuthority: PublicKey;
+        payer: PublicKey; metadata: PublicKey; maxSupply?: number;
+    }): TransactionInstruction {
+        const parts: Buffer[] = [];
+        parts.push(Buffer.from([17]));                                  // CreateMasterEditionV3
+        parts.push(Buffer.from([1]));                                   // maxSupply: Some
+        const max = Buffer.alloc(8);
+        max.writeBigUInt64LE(BigInt(Math.max(0, p.maxSupply ?? 0)), 0);  // 0 = no prints
+        parts.push(max);
+        const keys = [
+            { pubkey: p.edition,         isSigner: false, isWritable: true },
+            { pubkey: p.mint,            isSigner: false, isWritable: true },
+            { pubkey: p.updateAuthority, isSigner: true,  isWritable: false },
+            { pubkey: p.mintAuthority,   isSigner: true,  isWritable: false },
+            { pubkey: p.payer,           isSigner: true,  isWritable: true },
+            { pubkey: p.metadata,        isSigner: false, isWritable: true },
+            { pubkey: TOKEN_PROGRAM_ID,  isSigner: false, isWritable: false },
+            { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+        ];
+        return new TransactionInstruction({ programId: TOKEN_METADATA_PROGRAM_ID, keys, data: Buffer.concat(parts) });
+    }
+
+    /**
+     * Hand-built VerifySizedCollectionItem instruction (discriminator 30).
+     *
+     * Setting collection.key in the metadata only CLAIMS membership. Until the collection
+     * authority signs this, `verified` stays false and marketplaces treat the item as
+     * unaffiliated - which is indistinguishable from someone spoofing the collection.
+     */
+    private buildVerifySizedCollectionItemIx(p: {
+        metadata: PublicKey; collectionAuthority: PublicKey; payer: PublicKey;
+        collectionMint: PublicKey; collectionMetadata: PublicKey; collectionMasterEdition: PublicKey;
+    }): TransactionInstruction {
+        const keys = [
+            { pubkey: p.metadata,               isSigner: false, isWritable: true },
+            { pubkey: p.collectionAuthority,    isSigner: true,  isWritable: false },
+            { pubkey: p.payer,                  isSigner: true,  isWritable: true },
+            { pubkey: p.collectionMint,         isSigner: false, isWritable: false },
+            { pubkey: p.collectionMetadata,     isSigner: false, isWritable: true },
+            { pubkey: p.collectionMasterEdition, isSigner: false, isWritable: false },
+        ];
+        return new TransactionInstruction({
+            programId: TOKEN_METADATA_PROGRAM_ID, keys, data: Buffer.from([30]),
+        });
+    }
+
+    /**
+     * Is this URI backed by content-addressed permanent storage?
+     *
+     * Accepts the native schemes and a SHORT ALLOWLIST of gateway hosts. Deliberately not
+     * "any https URL containing /ipfs/": that would accept https://anything.example/ipfs/x, which
+     * is an ordinary mutable web server wearing an IPFS-shaped path.
+     *
+     * The gateway forms are accepted because that is what the pinning APIs hand back, but the
+     * canonical ipfs:// form is what should be STORED - a gateway can disappear, a CID cannot.
+     */
+    static isPermanentUri(uri: string): boolean {
+        if (!uri) { return false; }
+        if (/^ipfs:\/\/[A-Za-z0-9]{20,}/i.test(uri)) { return true; }
+        if (/^ar:\/\/[A-Za-z0-9_-]{20,}/i.test(uri)) { return true; }
+        const GATEWAYS = [
+            'gateway.pinata.cloud', 'ipfs.io', 'cloudflare-ipfs.com',
+            'nftstorage.link', 'dweb.link', 'w3s.link',
+        ];
+        try {
+            const u = new URL(uri);
+            if (u.protocol !== 'https:') { return false; }
+            if (u.hostname === 'arweave.net') { return true; }
+            // Some gateways are subdomain-scoped (<cid>.ipfs.dweb.link), so match the suffix too.
+            const onGateway = GATEWAYS.some(g => u.hostname === g || u.hostname.endsWith('.' + g));
+            return onGateway && /\/ipfs\/[A-Za-z0-9]{20,}/.test(u.pathname);
+        } catch {
+            return false;
+        }
+    }
+
+    /**
+     * Upgrade an EXISTING bare SPL mint into a standards-compliant NFT, in place.
+     *
+     * No new mint is created, nothing is burned, no ownership moves. The token address, its
+     * transaction history and its current holder all survive untouched; what changes is that the
+     * mint gains the metadata it should have had from the start.
+     *
+     * Every precondition is re-read FROM CHAIN immediately before submission rather than trusted
+     * from the caller. A stale precondition is the whole risk here: minting twice cannot be undone.
+     *
+     * Simulation is mandatory and fail-closed. A simulation that errors, or that cannot be run at
+     * all, aborts - an unsimulated transaction is never submitted.
+     */
+    async upgradeExistingMint(request: {
+        mint: string;
+        name: string;
+        uri: string;
+        collectionMint: string;
+        expectedOwner: string;
+        sellerFeeBasisPoints?: number;
+        dryRun?: boolean;
+    }): Promise<{
+        success: boolean;
+        refused?: string;
+        detail?: string;
+        signature?: string;
+        simulation?: { logs: string[]; unitsConsumed?: number };
+        outcome_unknown?: boolean;
+    }> {
+        // Request validation runs FIRST, before any check on runtime state.
+        //
+        // Ordering matters for more than tidiness: if the signer check came first, these gates
+        // could only ever be exercised in an environment holding a live private key, which means
+        // they could not be proven in CI at all. Validating the request on its own merits keeps
+        // the refusals deterministic and testable without a key present.
+
+        // The royalty is taken from the locked constant, never from the caller. A request that
+        // disagrees is refused rather than quietly corrected, so a 2000-bps caller cannot pass.
+        const bps = request.sellerFeeBasisPoints ?? IMMUTABLE_ROYALTY.BPS;
+        if (bps !== IMMUTABLE_ROYALTY.BPS) {
+            return { success: false, refused: 'royalty_mismatch', detail: `${bps} != ${IMMUTABLE_ROYALTY.BPS}` };
+        }
+        if (!TOLANFTMintService.isPermanentUri(request.uri)) {
+            // Railway and WordPress URLs are mutable and have already 404'd in this system.
+            return { success: false, refused: 'uri_not_permanent', detail: request.uri };
+        }
+
+        if (!this.initialized || !this.treasuryKeypair) {
+            return { success: false, refused: 'signer_unavailable' };
+        }
+
+        const connection = this.getConnection();
+        const mint = new PublicKey(request.mint);
+        const collectionMint = new PublicKey(request.collectionMint);
+
+        // ---- preconditions, read from chain now ----
+        const mintInfo = await connection.getParsedAccountInfo(mint);
+        const parsed: any = (mintInfo.value?.data as any)?.parsed?.info;
+        if (!parsed) { return { success: false, refused: 'mint_not_readable' }; }
+        if (String(parsed.decimals) !== '0' || String(parsed.supply) !== '1') {
+            return { success: false, refused: 'not_nft_shape', detail: `decimals=${parsed.decimals} supply=${parsed.supply}` };
+        }
+        if (!parsed.mintAuthority) {
+            return { success: false, refused: 'mint_authority_burned' };
+        }
+        if (parsed.mintAuthority !== this.treasuryKeypair.publicKey.toBase58()) {
+            return { success: false, refused: 'not_our_mint_authority', detail: parsed.mintAuthority };
+        }
+
+        const metadataAddress = this.getMetadataAddress(mint);
+        const existing = await connection.getAccountInfo(metadataAddress);
+        if (existing) {
+            // Idempotency: already upgraded. Report it rather than writing over it.
+            return { success: false, refused: 'metadata_already_exists', detail: metadataAddress.toBase58() };
+        }
+
+        const largest = await connection.getTokenLargestAccounts(mint);
+        const holderAta = largest.value?.[0]?.address;
+        if (!holderAta) { return { success: false, refused: 'no_token_account' }; }
+        const holderInfo = await connection.getParsedAccountInfo(holderAta);
+        const holder = ((holderInfo.value?.data as any)?.parsed?.info?.owner) || '';
+        if (holder !== request.expectedOwner) {
+            return { success: false, refused: 'owner_mismatch', detail: `${holder} != ${request.expectedOwner}` };
+        }
+
+        // ---- build ----
+        const treasury = this.treasuryKeypair.publicKey;
+        const editionAddress = this.getMasterEditionAddress(mint);
+        const collectionMetadata = this.getMetadataAddress(collectionMint);
+        const collectionEdition = this.getMasterEditionAddress(collectionMint);
+
+        const tx = new Transaction();
+        tx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }));
+        tx.add(this.buildCreateMetadataV3Ix({
+            metadata: metadataAddress, mint, mintAuthority: treasury, payer: treasury, updateAuthority: treasury,
+            name: request.name, symbol: 'TOLA', uri: request.uri, sellerFeeBasisPoints: bps,
+            creators: [{ address: treasury, verified: true, share: 100 }],
+            collection: collectionMint,
+        }));
+        tx.add(this.buildCreateMasterEditionV3Ix({
+            edition: editionAddress, mint, updateAuthority: treasury, mintAuthority: treasury,
+            payer: treasury, metadata: metadataAddress, maxSupply: 0,
+        }));
+        tx.add(this.buildVerifySizedCollectionItemIx({
+            metadata: metadataAddress, collectionAuthority: treasury, payer: treasury,
+            collectionMint, collectionMetadata, collectionMasterEdition: collectionEdition,
+        }));
+
+        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('finalized');
+        tx.recentBlockhash = blockhash;
+        tx.feePayer = treasury;
+
+        // ---- simulate, fail closed ----
+        let sim;
+        try {
+            sim = await connection.simulateTransaction(tx, [this.treasuryKeypair]);
+        } catch (e: any) {
+            return { success: false, refused: 'simulation_unavailable', detail: e?.message || String(e) };
+        }
+        if (sim.value.err) {
+            return {
+                success: false, refused: 'simulation_failed',
+                detail: JSON.stringify(sim.value.err),
+                simulation: { logs: sim.value.logs || [] },
+            };
+        }
+        const simulation = { logs: sim.value.logs || [], unitsConsumed: sim.value.unitsConsumed };
+
+        if (request.dryRun) {
+            return { success: true, refused: 'dry_run_only', simulation };
+        }
+
+        // ---- submit ----
+        // The signature is captured BEFORE confirmation is awaited. A confirmation timeout on a
+        // transaction whose signature we never recorded is unreconcilable, and blind retry after
+        // one is how a duplicate gets created.
+        let signature: string;
+        try {
+            tx.sign(this.treasuryKeypair);
+            signature = await connection.sendRawTransaction(tx.serialize(), {
+                skipPreflight: false, maxRetries: 0,
+            });
+        } catch (e: any) {
+            return { success: false, refused: 'submit_failed', detail: e?.message || String(e) };
+        }
+
+        try {
+            const conf = await connection.confirmTransaction(
+                { signature, blockhash, lastValidBlockHeight }, 'confirmed');
+            if (conf.value.err) {
+                return { success: false, refused: 'transaction_failed', signature, detail: JSON.stringify(conf.value.err), simulation };
+            }
+        } catch (e: any) {
+            // Timed out waiting. The transaction may or may not have landed; that is a question for
+            // reconciliation against chain, never for a retry.
+            return { success: false, outcome_unknown: true, refused: 'confirmation_timeout', signature, simulation };
+        }
+
+        return { success: true, signature, simulation };
     }
 
     /**
@@ -400,14 +668,18 @@ export class TOLANFTMintService {
                 })
             );
             
-            // Initialize mint (0 decimals for NFT)
+            // Initialize mint (0 decimals for NFT).
+            // freezeAuthority = null: NO freeze authority is ever set, so the platform can
+            // never freeze a holder's token. This preserves full transfer freedom /
+            // non-custodial ownership (founder requirement 2026-06-18). mintAuthority stays
+            // with the treasury only to attach metadata in this same tx.
             const { createInitializeMintInstruction } = await import('@solana/spl-token');
             transaction.add(
                 createInitializeMintInstruction(
                     mintAddress,
                     0, // 0 decimals for NFT
-                    this.treasuryKeypair.publicKey,
-                    this.treasuryKeypair.publicKey
+                    this.treasuryKeypair.publicKey, // mint authority (needed to write metadata in-tx)
+                    null                            // freeze authority REVOKED (no freezing ever)
                 )
             );
             
@@ -432,33 +704,29 @@ export class TOLANFTMintService {
                 )
             );
             
-            // Prepare creators — use PHP-provided shares (Marianne first at 25%, participants at 75%/N).
-            // Metaplex limit: 5 creators. Truncate and redistribute dropped shares to the last entry.
-            const MAX_METAPLEX_CREATORS = 5;
-            let creatorList: Array<{ address: PublicKey; verified: boolean; share: number }>;
-            if (request.creators && request.creators.length > 0) {
-                const truncated = request.creators.slice(0, MAX_METAPLEX_CREATORS);
-                if (request.creators.length > MAX_METAPLEX_CREATORS) {
-                    const dropped = request.creators.slice(MAX_METAPLEX_CREATORS).reduce((s, c) => s + (c.share || 0), 0);
-                    truncated[truncated.length - 1] = { ...truncated[truncated.length - 1], share: (truncated[truncated.length - 1].share || 0) + dropped };
-                }
-                creatorList = truncated.map(c => ({
-                    address: new PublicKey(c.address),
-                    verified: c.address === IMMUTABLE_ROYALTY.WALLET,
-                    share: c.share || 0
-                }));
-            } else {
-                creatorList = [{ address: new PublicKey(IMMUTABLE_ROYALTY.WALLET), verified: true, share: 100 }];
+            // Reconciled 5% model (founder-approved 2026-06-18):
+            //   - 100% of the 5% royalty -> VORTEX royalty wallet (verified; it is the treasury signer).
+            //   - The artist/creator (recipient), when distinct, is included as an ATTRIBUTION-ONLY
+            //     creator (share=0, unverified) so on-chain attribution survives transfer while the
+            //     full royalty still flows to VORTEX. Shares must sum to 100.
+            // Metaplex limit: 5 creators.
+            const VORTEX_WALLET = new PublicKey(IMMUTABLE_ROYALTY.WALLET);
+            const creatorList: Array<{ address: PublicKey; verified: boolean; share: number }> = [];
+            const recipientStr = recipient.toBase58();
+            if (recipientStr !== IMMUTABLE_ROYALTY.WALLET) {
+                // attribution-only creator entry for the asset's creator (no royalty share)
+                creatorList.push({ address: recipient, verified: false, share: 0 });
             }
+            creatorList.push({ address: VORTEX_WALLET, verified: true, share: 100 });
             const creators = creatorList;
 
-            logger.info(`[NFT Service] Royalty: ${IMMUTABLE_ROYALTY.BPS} BPS (20%: 5% creator + 15% participants) → ${IMMUTABLE_ROYALTY.WALLET} - IMMUTABLE`);
+            logger.info(`[NFT Service] Royalty: ${IMMUTABLE_ROYALTY.BPS} BPS (5% -> 100% VORTEX ${IMMUTABLE_ROYALTY.WALLET}); creator attribution=${recipientStr !== IMMUTABLE_ROYALTY.WALLET ? recipientStr : 'n/a'}`);
             
             // Create the Metaplex Token Metadata account (CreateMetadataAccountV3).
             // THIS WAS THE MISSING STEP: without it the mint is a bare SPL token
             // (no name/image/creators/royalty). Attaches name, image URI, the
-            // creators array, and the 20% seller-fee royalty (5% creator + 15%
-            // participants) so each Masterpiece is a real, royalty-bearing NFT.
+            // creators array, and the locked 5% seller-fee royalty (100% VORTEX)
+            // so each mint is a real, royalty-bearing, attributed NFT.
             transaction.add(
                 this.buildCreateMetadataV3Ix({
                     metadata:        metadataAddress,
@@ -469,7 +737,7 @@ export class TOLANFTMintService {
                     name:            request.name,
                     symbol:          'TOLA',
                     uri:             request.uri,
-                    sellerFeeBasisPoints: request.seller_fee_basis_points ?? IMMUTABLE_ROYALTY.BPS,
+                    sellerFeeBasisPoints: IMMUTABLE_ROYALTY.BPS, // locked 5% (500 bps); WP also sends 500 -> no ambiguity
                     creators:        creators.map(c => ({ address: c.address, verified: c.verified, share: c.share })),
                 })
             );
