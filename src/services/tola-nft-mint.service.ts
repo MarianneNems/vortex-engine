@@ -39,6 +39,7 @@ import {
 } from '@solana/spl-token';
 import bs58 from 'bs58';
 import axios from 'axios';
+import { createHash } from 'crypto';
 import { logger } from '../utils/logger';
 
 // Metaplex Token Metadata Program
@@ -433,16 +434,52 @@ export class TOLANFTMintService {
         mint: string;
         name: string;
         uri: string;
-        collectionMint: string;
+        /**
+         * Optional by Founder ruling (CANARY 50): no canonical TOLA collection mint exists yet,
+         * and creating one would be creating another mint - the one thing this path must refuse.
+         * When absent, metadata is written with collection: None and no verify instruction; the
+         * canonical collection is added later via SetAndVerifySizedCollectionItem under its own
+         * Founder authorization.
+         */
+        collectionMint?: string;
+        /**
+         * Public creator identity (Founder ruling: the operational signer is the fee payer and
+         * authority, NEVER the public creator). verified is derived, not requested: true only
+         * when the creator IS the signing treasury key, false otherwise - an unverified creator
+         * claim is honest; a forged verified flag is impossible anyway (the chain would reject
+         * it), so we never build one.
+         */
+        creator?: string;
         expectedOwner: string;
         sellerFeeBasisPoints?: number;
         dryRun?: boolean;
+        /**
+         * Required for execution. The sha256 of the transaction INVARIANTS returned by the
+         * preview as approval_sha256. The raw message hash cannot serve here - recentBlockhash
+         * is part of the message, so the executed message always differs from the previewed one.
+         * Binding on the invariants means what the Founder approved is what runs, and a changed
+         * name, URI, creator, collection or royalty invalidates the approval automatically.
+         */
+        approvedHash?: string;
     }): Promise<{
         success: boolean;
         refused?: string;
         detail?: string;
         signature?: string;
         simulation?: { logs: string[]; unitsConsumed?: number };
+        preview?: {
+            instructions: Array<{ index: number; program: string; kind: string }>;
+            message_base64: string;
+            message_sha256: string;
+            approval_sha256: string;
+            fee_lamports: number | null;
+            rent_lamports: number;
+            est_total_sol: number;
+            creators: Array<{ address: string; verified: boolean; share: number }>;
+            collection: string | null;
+            update_authority: string;
+            fee_payer: string;
+        };
         outcome_unknown?: boolean;
     }> {
         // Request validation runs FIRST, before any check on runtime state.
@@ -469,7 +506,14 @@ export class TOLANFTMintService {
 
         const connection = this.getConnection();
         const mint = new PublicKey(request.mint);
-        const collectionMint = new PublicKey(request.collectionMint);
+        const collectionMint = request.collectionMint ? new PublicKey(request.collectionMint) : null;
+
+        // The public creator identity. verified is DERIVED: only a creator who is also the
+        // transaction signer can be marked verified - anything else the chain itself rejects.
+        const creatorAddress = request.creator
+            ? new PublicKey(request.creator)
+            : this.treasuryKeypair.publicKey;
+        const creatorIsSigner = creatorAddress.equals(this.treasuryKeypair.publicKey);
 
         // ---- preconditions, read from chain now ----
         const mintInfo = await connection.getParsedAccountInfo(mint);
@@ -504,25 +548,45 @@ export class TOLANFTMintService {
         // ---- build ----
         const treasury = this.treasuryKeypair.publicKey;
         const editionAddress = this.getMasterEditionAddress(mint);
-        const collectionMetadata = this.getMetadataAddress(collectionMint);
-        const collectionEdition = this.getMasterEditionAddress(collectionMint);
+        const creators = [{ address: creatorAddress, verified: creatorIsSigner, share: 100 }];
+
+        // The invariants the Founder approves. Everything that decides what this NFT permanently
+        // becomes is in here; nothing volatile (blockhash, fees) is.
+        const approvalSha = createHash('sha256').update(JSON.stringify({
+            mint: request.mint, name: request.name, uri: request.uri, symbol: 'TOLA',
+            seller_fee_basis_points: bps,
+            creator: creatorAddress.toBase58(), creator_verified: creatorIsSigner,
+            collection: collectionMint ? collectionMint.toBase58() : null,
+            update_authority: treasury.toBase58(), max_supply: 0,
+        })).digest('hex');
+
+        if (!request.dryRun && request.approvedHash !== approvalSha) {
+            return {
+                success: false, refused: 'approval_hash_required_or_mismatch',
+                detail: 'execution requires approved_hash equal to the preview approval_sha256',
+            };
+        }
 
         const tx = new Transaction();
         tx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }));
         tx.add(this.buildCreateMetadataV3Ix({
             metadata: metadataAddress, mint, mintAuthority: treasury, payer: treasury, updateAuthority: treasury,
             name: request.name, symbol: 'TOLA', uri: request.uri, sellerFeeBasisPoints: bps,
-            creators: [{ address: treasury, verified: true, share: 100 }],
-            collection: collectionMint,
+            creators,
+            collection: collectionMint ?? undefined,
         }));
         tx.add(this.buildCreateMasterEditionV3Ix({
             edition: editionAddress, mint, updateAuthority: treasury, mintAuthority: treasury,
             payer: treasury, metadata: metadataAddress, maxSupply: 0,
         }));
-        tx.add(this.buildVerifySizedCollectionItemIx({
-            metadata: metadataAddress, collectionAuthority: treasury, payer: treasury,
-            collectionMint, collectionMetadata, collectionMasterEdition: collectionEdition,
-        }));
+        if (collectionMint) {
+            tx.add(this.buildVerifySizedCollectionItemIx({
+                metadata: metadataAddress, collectionAuthority: treasury, payer: treasury,
+                collectionMint,
+                collectionMetadata: this.getMetadataAddress(collectionMint),
+                collectionMasterEdition: this.getMasterEditionAddress(collectionMint),
+            }));
+        }
 
         const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('finalized');
         tx.recentBlockhash = blockhash;
@@ -545,7 +609,44 @@ export class TOLANFTMintService {
         const simulation = { logs: sim.value.logs || [], unitsConsumed: sim.value.unitsConsumed };
 
         if (request.dryRun) {
-            return { success: true, refused: 'dry_run_only', simulation };
+            // FOUNDER SIGNING BOUNDARY: the preview is everything needed to approve the exact
+            // transaction - the serialized message and its hash, every instruction in order, the
+            // authorities, and the cost. Approval is given against message_sha256; the execute
+            // call is refused unless it echoes the same hash, so what was approved is what runs.
+            const message = tx.compileMessage();
+            const messageB64 = message.serialize().toString('base64');
+            const messageSha = createHash('sha256').update(message.serialize()).digest('hex');
+            let feeLamports: number | null = null;
+            try {
+                feeLamports = (await connection.getFeeForMessage(message, 'confirmed')).value ?? null;
+            } catch { /* fee estimate is advisory; rent is the dominant cost */ }
+            // Rent exemption for the two accounts this transaction creates (fixed sizes).
+            const METADATA_SIZE = 679, EDITION_SIZE = 282;
+            let rentLamports = 0;
+            try {
+                rentLamports =
+                    (await connection.getMinimumBalanceForRentExemption(METADATA_SIZE)) +
+                    (await connection.getMinimumBalanceForRentExemption(EDITION_SIZE));
+            } catch { /* reported as 0 only if the RPC refuses; the simulate above already passed */ }
+            const kinds = ['SetComputeUnitLimit', 'CreateMetadataAccountV3', 'CreateMasterEditionV3', 'VerifySizedCollectionItem'];
+            return {
+                success: true, refused: 'dry_run_only', simulation,
+                preview: {
+                    instructions: tx.instructions.map((ix, i) => ({
+                        index: i, program: ix.programId.toBase58(), kind: kinds[i] || 'unknown',
+                    })),
+                    message_base64: messageB64,
+                    message_sha256: messageSha,
+                    approval_sha256: approvalSha,
+                    fee_lamports: feeLamports,
+                    rent_lamports: rentLamports,
+                    est_total_sol: ((feeLamports ?? 5000) + rentLamports) / 1_000_000_000,
+                    creators: creators.map( c => ({ address: c.address.toBase58(), verified: c.verified, share: c.share }) ),
+                    collection: collectionMint ? collectionMint.toBase58() : null,
+                    update_authority: treasury.toBase58(),
+                    fee_payer: treasury.toBase58(),
+                },
+            };
         }
 
         // ---- submit ----
