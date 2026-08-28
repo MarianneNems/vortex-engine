@@ -30,9 +30,16 @@ const ROYALTY_CONFIG = {
     // Platform wallet for royalty collection
     PLATFORM_ROYALTY_WALLET: process.env.SYSTEM_CREATOR_ROYALTY_WALLET || 'EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz',
     
-    // Secondary sale configuration
-    SECONDARY_SALE_ROYALTY_BPS: 2000, // 20% total on secondary sales
-    PLATFORM_SHARE_OF_ROYALTY: 0.25,  // Platform gets 25% of royalty (5% of 20%)
+    // Secondary sale configuration (FOUNDER RULING - CANARY 50, 2026-08-28).
+    // The governed on-chain royalty is 500 bps total, ratified by law_canonical_solana_mint.
+    // The historical 2000 here conflated the 15% FIRST-SALE platform commission with the
+    // perpetual secondary royalty; baking that into seller_fee_basis_points would charge 20%
+    // on every secondary sale forever. First-sale commission is an off-chain settlement split
+    // and must never appear in on-chain royalty basis points. This constant had no consumer
+    // when corrected; the release test src/tests/royalty-release.test.ts now fails the build
+    // if any non-500 royalty constant reappears anywhere under src/.
+    SECONDARY_SALE_ROYALTY_BPS: 500,  // 5% total on secondary sales - IMMUTABLE
+    PLATFORM_SHARE_OF_ROYALTY: 1.0,   // The single 5% royalty is the platform/creator royalty
     
     // Version tracking
     VERSION: '4.0.0',

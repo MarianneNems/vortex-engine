@@ -15,7 +15,7 @@
 import { Router, Request, Response } from 'express';
 import { TOLANFTMintService, NFTMintRequest } from '../services/tola-nft-mint.service';
 import { TOLATransferService, TOLATransferRequest } from '../services/tola-transfer.service';
-import { authMiddleware } from '../middleware/auth.middleware';
+import { authMiddleware, adminAuthMiddleware } from '../middleware/auth.middleware';
 import { logger } from '../utils/logger';
 import { createHash } from 'crypto';
 import { mkdirSync, readFileSync, existsSync } from 'fs';
@@ -147,6 +147,47 @@ router.get('/metadata/:id', (req: Request, res: Response) => {
     if (!existsSync(filePath)) return res.status(404).json({ success: false, error: 'Not found' });
     res.setHeader('Content-Type', 'application/json');
     res.send(readFileSync(filePath));
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/tola/upgrade-mint    (FOUNDER RULING - repair of existing bare mints)
+//
+// Narrow by construction: this endpoint can only attach metadata and a Master Edition to an
+// EXISTING supply-one zero-decimal mint whose authority we hold. It cannot mint supply, cannot
+// create a new mint, and refuses anything already carrying metadata. Admin-gated.
+//
+// Two-step: the default is a dry run returning a full preview (instructions, serialized message,
+// message hash, approval hash, costs, authorities). Execution requires dry_run:false AND
+// approved_hash equal to the preview's approval_sha256 - the Founder signing boundary.
+// ---------------------------------------------------------------------------
+router.post('/upgrade-mint', adminAuthMiddleware, async (req: Request, res: Response) => {
+    if (!nftMintService) {
+        return res.status(503).json({ success: false, error: 'NFT mint service not available' });
+    }
+    const b = req.body || {};
+    for (const k of ['mint', 'name', 'uri', 'expected_owner']) {
+        if (!b[k] || typeof b[k] !== 'string') {
+            return res.status(400).json({ success: false, error: `missing required field: ${k}` });
+        }
+    }
+    try {
+        const result = await nftMintService.upgradeExistingMint({
+            mint: b.mint,
+            name: b.name,
+            uri: b.uri,
+            creator: typeof b.creator === 'string' ? b.creator : undefined,
+            collectionMint: typeof b.collection_mint === 'string' ? b.collection_mint : undefined,
+            expectedOwner: b.expected_owner,
+            sellerFeeBasisPoints: typeof b.seller_fee_basis_points === 'number' ? b.seller_fee_basis_points : undefined,
+            // Anything other than the explicit literal false is a dry run. Fail-closed.
+            dryRun: b.dry_run !== false,
+            approvedHash: typeof b.approved_hash === 'string' ? b.approved_hash : undefined,
+        });
+        return res.status(result.success || result.refused === 'dry_run_only' ? 200 : 422).json(result);
+    } catch (e: any) {
+        logger.error('[TOLA COMPAT] upgrade-mint error', { error: e?.message });
+        return res.status(500).json({ success: false, error: e?.message || 'internal error' });
+    }
 });
 
 // ---------------------------------------------------------------------------
