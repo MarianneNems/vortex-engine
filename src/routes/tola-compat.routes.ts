@@ -191,6 +191,49 @@ router.post('/upgrade-mint', adminAuthMiddleware, async (req: Request, res: Resp
 });
 
 // ---------------------------------------------------------------------------
+// POST /api/tola/create-collection   (FOUNDER manifest v2 - the ONE governed new mint)
+// Seed-derived address, refuses if it exists, dry-run default, approval-hash bound.
+// ---------------------------------------------------------------------------
+router.post('/create-collection', adminAuthMiddleware, async (req: Request, res: Response) => {
+    if (!nftMintService) { return res.status(503).json({ success: false, error: 'service unavailable' }); }
+    const b = req.body || {};
+    for (const k of ['name', 'uri']) {
+        if (!b[k] || typeof b[k] !== 'string') { return res.status(400).json({ success: false, error: `missing: ${k}` }); }
+    }
+    try {
+        const result = await nftMintService.createCollectionNft({
+            name: b.name, uri: b.uri,
+            creator: typeof b.creator === 'string' ? b.creator : undefined,
+            sellerFeeBasisPoints: typeof b.seller_fee_basis_points === 'number' ? b.seller_fee_basis_points : undefined,
+            dryRun: b.dry_run !== false,
+            approvedHash: typeof b.approved_hash === 'string' ? b.approved_hash : undefined,
+        });
+        return res.status(result.success || result.refused === 'dry_run_only' ? 200 : 422).json(result);
+    } catch (e: any) {
+        return res.status(500).json({ success: false, error: e?.message || 'internal error' });
+    }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/tola/verify-collection-item   (SetAndVerifySizedCollectionItem, one item)
+// ---------------------------------------------------------------------------
+router.post('/verify-collection-item', adminAuthMiddleware, async (req: Request, res: Response) => {
+    if (!nftMintService) { return res.status(503).json({ success: false, error: 'service unavailable' }); }
+    const b = req.body || {};
+    if (!b.mint || typeof b.mint !== 'string') { return res.status(400).json({ success: false, error: 'missing: mint' }); }
+    try {
+        const result = await nftMintService.setAndVerifyCollectionItem({
+            mint: b.mint,
+            dryRun: b.dry_run !== false,
+            approvedHash: typeof b.approved_hash === 'string' ? b.approved_hash : undefined,
+        });
+        return res.status(result.success || result.refused === 'dry_run_only' ? 200 : 422).json(result);
+    } catch (e: any) {
+        return res.status(500).json({ success: false, error: e?.message || 'internal error' });
+    }
+});
+
+// ---------------------------------------------------------------------------
 // POST /api/tola/mint-nft
 //
 // PHP sends: { name, symbol, uri, recipient_wallet, seller_fee_basis_points, creators }

@@ -275,6 +275,8 @@ export class TOLANFTMintService {
         name: string; symbol: string; uri: string; sellerFeeBasisPoints: number;
         creators: Array<{ address: PublicKey; verified: boolean; share: number }>;
         collection?: PublicKey;
+        /** Some(V1{size}) marks THIS mint as a sized collection parent. Undefined/null = None. */
+        collectionDetailsV1Size?: number | null;
     }): TransactionInstruction {
         const borshStr = (s: string): Buffer => {
             const b = Buffer.from(s, 'utf8');
@@ -312,7 +314,13 @@ export class TOLANFTMintService {
         }
         parts.push(Buffer.from([0]));                                   // uses: None
         parts.push(Buffer.from([1]));                                   // isMutable: true
-        parts.push(Buffer.from([0]));                                   // collectionDetails: None
+        if (p.collectionDetailsV1Size !== undefined && p.collectionDetailsV1Size !== null) {
+            parts.push(Buffer.from([1, 0]));                            // Some(CollectionDetails::V1)
+            const szBuf = Buffer.alloc(8); szBuf.writeBigUInt64LE(BigInt(p.collectionDetailsV1Size), 0);
+            parts.push(szBuf);                                          // size (u64)
+        } else {
+            parts.push(Buffer.from([0]));                               // collectionDetails: None
+        }
         const data = Buffer.concat(parts);
         const keys = [
             { pubkey: p.metadata,        isSigner: false, isWritable: true },
@@ -430,6 +438,212 @@ export class TOLANFTMintService {
      * Simulation is mandatory and fail-closed. A simulation that errors, or that cannot be run at
      * all, aborts - an unsimulated transaction is never submitted.
      */
+    /** Deterministic collection mint: seed-derived from the treasury, so its address and every
+     *  downstream verify instruction are knowable before execution, with no extra keypair. */
+    static readonly COLLECTION_SEED = 'TOLA-COLLECTION-V1';
+
+    async collectionMintAddress(): Promise<PublicKey> {
+        if (!this.treasuryKeypair) { throw new Error('signer unavailable'); }
+        return PublicKey.createWithSeed(this.treasuryKeypair.publicKey, TOLANFTMintService.COLLECTION_SEED, TOKEN_PROGRAM_ID);
+    }
+
+    /**
+     * Create THE canonical sized collection NFT (the one governed new mint). Narrow by
+     * construction: seed-fixed address, refuses if the account already exists, dry-run default,
+     * execution bound to the preview approval hash exactly like upgradeExistingMint.
+     */
+    async createCollectionNft(request: {
+        name: string; uri: string; creator?: string;
+        sellerFeeBasisPoints?: number; dryRun?: boolean; approvedHash?: string;
+    }): Promise<any> {
+        const bps = request.sellerFeeBasisPoints ?? IMMUTABLE_ROYALTY.BPS;
+        if (bps !== IMMUTABLE_ROYALTY.BPS) {
+            return { success: false, refused: 'royalty_mismatch', detail: `${bps} != ${IMMUTABLE_ROYALTY.BPS}` };
+        }
+        if (!TOLANFTMintService.isPermanentUri(request.uri)) {
+            return { success: false, refused: 'uri_not_permanent', detail: request.uri };
+        }
+        if (!this.initialized || !this.treasuryKeypair) { return { success: false, refused: 'signer_unavailable' }; }
+
+        const connection = this.getConnection();
+        const treasury = this.treasuryKeypair.publicKey;
+        const mint = await this.collectionMintAddress();
+        const existing = await connection.getAccountInfo(mint);
+        if (existing) {
+            return { success: false, refused: 'collection_already_exists', detail: mint.toBase58() };
+        }
+
+        const creatorAddress = request.creator ? new PublicKey(request.creator) : treasury;
+        const creatorIsSigner = creatorAddress.equals(treasury);
+        const metadataAddress = this.getMetadataAddress(mint);
+        const editionAddress = this.getMasterEditionAddress(mint);
+        const ata = await getAssociatedTokenAddress(mint, treasury);
+
+        const approvalSha = createHash('sha256').update(JSON.stringify({
+            action: 'create_collection', seed: TOLANFTMintService.COLLECTION_SEED,
+            mint: mint.toBase58(), name: request.name, uri: request.uri, symbol: 'TOLA',
+            seller_fee_basis_points: bps, creator: creatorAddress.toBase58(),
+            creator_verified: creatorIsSigner, update_authority: treasury.toBase58(),
+            collection_details_v1_size: 0, max_supply: 0,
+        })).digest('hex');
+        if (!request.dryRun && request.approvedHash !== approvalSha) {
+            return { success: false, refused: 'approval_hash_required_or_mismatch' };
+        }
+
+        const MINT_SPACE = 82;
+        const mintRent = await connection.getMinimumBalanceForRentExemption(MINT_SPACE);
+        const { createInitializeMintInstruction, createMintToInstruction } = await import('@solana/spl-token');
+
+        const tx = new Transaction();
+        tx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }));
+        tx.add(SystemProgram.createAccountWithSeed({
+            fromPubkey: treasury, newAccountPubkey: mint, basePubkey: treasury,
+            seed: TOLANFTMintService.COLLECTION_SEED, lamports: mintRent, space: MINT_SPACE,
+            programId: TOKEN_PROGRAM_ID,
+        }));
+        tx.add(createInitializeMintInstruction(mint, 0, treasury, treasury));
+        tx.add(createAssociatedTokenAccountInstruction(treasury, ata, treasury, mint));
+        tx.add(createMintToInstruction(mint, ata, treasury, 1));
+        tx.add(this.buildCreateMetadataV3Ix({
+            metadata: metadataAddress, mint, mintAuthority: treasury, payer: treasury, updateAuthority: treasury,
+            name: request.name, symbol: 'TOLA', uri: request.uri, sellerFeeBasisPoints: bps,
+            creators: [{ address: creatorAddress, verified: creatorIsSigner, share: 100 }],
+            collectionDetailsV1Size: 0,
+        }));
+        tx.add(this.buildCreateMasterEditionV3Ix({
+            edition: editionAddress, mint, updateAuthority: treasury, mintAuthority: treasury,
+            payer: treasury, metadata: metadataAddress, maxSupply: 0,
+        }));
+
+        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('finalized');
+        tx.recentBlockhash = blockhash; tx.feePayer = treasury;
+
+        let sim;
+        try { sim = await connection.simulateTransaction(tx, [this.treasuryKeypair]); }
+        catch (e: any) { return { success: false, refused: 'simulation_unavailable', detail: e?.message || String(e) }; }
+        if (sim.value.err) {
+            return { success: false, refused: 'simulation_failed', detail: JSON.stringify(sim.value.err),
+                simulation: { logs: sim.value.logs || [] } };
+        }
+        const simulation = { logs: sim.value.logs || [], unitsConsumed: sim.value.unitsConsumed };
+
+        if (request.dryRun) {
+            const message = tx.compileMessage();
+            let feeLamports: number | null = null;
+            try { feeLamports = (await connection.getFeeForMessage(message, 'confirmed')).value ?? null; } catch {}
+            let rentLamports = mintRent;
+            try {
+                rentLamports += await connection.getMinimumBalanceForRentExemption(165);
+                rentLamports += await connection.getMinimumBalanceForRentExemption(679);
+                rentLamports += await connection.getMinimumBalanceForRentExemption(282);
+            } catch {}
+            return { success: true, refused: 'dry_run_only', simulation, preview: {
+                collection_mint: mint.toBase58(), metadata_pda: metadataAddress.toBase58(),
+                edition_pda: editionAddress.toBase58(), token_account: ata.toBase58(),
+                message_sha256: createHash('sha256').update(message.serialize()).digest('hex'),
+                approval_sha256: approvalSha, fee_lamports: feeLamports, rent_lamports: rentLamports,
+                update_authority: treasury.toBase58(), fee_payer: treasury.toBase58(),
+            } };
+        }
+
+        let signature: string;
+        try {
+            tx.sign(this.treasuryKeypair);
+            signature = await connection.sendRawTransaction(tx.serialize(), { skipPreflight: false, maxRetries: 0 });
+        } catch (e: any) { return { success: false, refused: 'submit_failed', detail: e?.message || String(e) }; }
+        try {
+            const conf = await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'confirmed');
+            if (conf.value.err) { return { success: false, refused: 'transaction_failed', signature, detail: JSON.stringify(conf.value.err) }; }
+        } catch { return { success: false, outcome_unknown: true, refused: 'confirmation_timeout', signature }; }
+        return { success: true, signature, collection_mint: mint.toBase58(), simulation };
+    }
+
+    /** SetAndVerifySizedCollectionItem: stamps and verifies membership in the sized collection.
+     *  The item update authority and the collection authority are both the treasury here, so a
+     *  single signer suffices. */
+    private buildSetAndVerifySizedCollectionItemIx(p: {
+        metadata: PublicKey; collectionAuthority: PublicKey; payer: PublicKey; updateAuthority: PublicKey;
+        collectionMint: PublicKey; collectionMetadata: PublicKey; collectionMasterEdition: PublicKey;
+    }): TransactionInstruction {
+        const keys = [
+            { pubkey: p.metadata,                isSigner: false, isWritable: true },
+            { pubkey: p.collectionAuthority,     isSigner: true,  isWritable: false },
+            { pubkey: p.payer,                   isSigner: true,  isWritable: true },
+            { pubkey: p.updateAuthority,         isSigner: false, isWritable: false },
+            { pubkey: p.collectionMint,          isSigner: false, isWritable: false },
+            { pubkey: p.collectionMetadata,      isSigner: false, isWritable: true },
+            { pubkey: p.collectionMasterEdition, isSigner: false, isWritable: false },
+        ];
+        return new TransactionInstruction({
+            programId: TOKEN_METADATA_PROGRAM_ID,
+            keys, data: Buffer.from([32]),
+        });
+    }
+
+    /** Verify one repaired item into the canonical collection. */
+    async setAndVerifyCollectionItem(request: { mint: string; dryRun?: boolean; approvedHash?: string; }): Promise<any> {
+        if (!this.initialized || !this.treasuryKeypair) { return { success: false, refused: 'signer_unavailable' }; }
+        const connection = this.getConnection();
+        const treasury = this.treasuryKeypair.publicKey;
+        const itemMint = new PublicKey(request.mint);
+        const collectionMint = await this.collectionMintAddress();
+
+        const approvalSha = createHash('sha256').update(JSON.stringify({
+            action: 'set_and_verify', mint: itemMint.toBase58(), collection: collectionMint.toBase58(),
+            authority: treasury.toBase58(),
+        })).digest('hex');
+        if (!request.dryRun && request.approvedHash !== approvalSha) {
+            return { success: false, refused: 'approval_hash_required_or_mismatch' };
+        }
+
+        const itemMetadata = this.getMetadataAddress(itemMint);
+        const meta = await connection.getAccountInfo(itemMetadata);
+        if (!meta) { return { success: false, refused: 'item_metadata_absent' }; }
+        const collMeta = await connection.getAccountInfo(this.getMetadataAddress(collectionMint));
+        const collectionReady = !!collMeta;
+
+        const tx = new Transaction();
+        tx.add(this.buildSetAndVerifySizedCollectionItemIx({
+            metadata: itemMetadata, collectionAuthority: treasury, payer: treasury, updateAuthority: treasury,
+            collectionMint, collectionMetadata: this.getMetadataAddress(collectionMint),
+            collectionMasterEdition: this.getMasterEditionAddress(collectionMint),
+        }));
+        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('finalized');
+        tx.recentBlockhash = blockhash; tx.feePayer = treasury;
+
+        let simulation: any = null; let simErr: any = null;
+        try {
+            const sim = await connection.simulateTransaction(tx, [this.treasuryKeypair]);
+            if (sim.value.err) { simErr = sim.value.err; }
+            simulation = { logs: (sim.value.logs || []).slice(-6), unitsConsumed: sim.value.unitsConsumed };
+        } catch (e: any) { simErr = e?.message || String(e); }
+
+        if (request.dryRun) {
+            const message = tx.compileMessage();
+            return { success: true, refused: 'dry_run_only',
+                collection_ready: collectionReady,
+                simulation, simulation_error: simErr ? JSON.stringify(simErr) : null,
+                preview: { item_metadata: itemMetadata.toBase58(), collection_mint: collectionMint.toBase58(),
+                    approval_sha256: approvalSha,
+                    message_sha256: createHash('sha256').update(message.serialize()).digest('hex'),
+                    fee_lamports: 5000 } };
+        }
+        if (!collectionReady) { return { success: false, refused: 'collection_absent' }; }
+        if (simErr) { return { success: false, refused: 'simulation_failed', detail: JSON.stringify(simErr), simulation }; }
+
+        let signature: string;
+        try {
+            tx.sign(this.treasuryKeypair);
+            signature = await connection.sendRawTransaction(tx.serialize(), { skipPreflight: false, maxRetries: 0 });
+        } catch (e: any) { return { success: false, refused: 'submit_failed', detail: e?.message || String(e) }; }
+        try {
+            const conf = await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'confirmed');
+            if (conf.value.err) { return { success: false, refused: 'transaction_failed', signature, detail: JSON.stringify(conf.value.err) }; }
+        } catch { return { success: false, outcome_unknown: true, refused: 'confirmation_timeout', signature }; }
+        return { success: true, signature };
+    }
+
+
     async upgradeExistingMint(request: {
         mint: string;
         name: string;
