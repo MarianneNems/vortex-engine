@@ -495,7 +495,9 @@ export class TOLANFTMintService {
         const { createInitializeMintInstruction, createMintToInstruction } = await import('@solana/spl-token');
 
         const tx = new Transaction();
-        tx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }));
+        tx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 160_000 }));
+tx.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: Number(process.env.PRIORITY_FEE_MICROLAMPORTS || 2000) }));
+
         tx.add(SystemProgram.createAccountWithSeed({
             fromPubkey: treasury, newAccountPubkey: mint, basePubkey: treasury,
             seed: TOLANFTMintService.COLLECTION_SEED, lamports: mintRent, space: MINT_SPACE,
@@ -603,6 +605,8 @@ export class TOLANFTMintService {
         const collectionReady = !!collMeta;
 
         const tx = new Transaction();
+        tx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 90_000 }));
+        tx.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: Number(process.env.PRIORITY_FEE_MICROLAMPORTS || 2000) }));
         tx.add(this.buildSetAndVerifySizedCollectionItemIx({
             metadata: itemMetadata, collectionAuthority: treasury, payer: treasury, updateAuthority: treasury,
             collectionMint, collectionMetadata: this.getMetadataAddress(collectionMint),
@@ -782,7 +786,9 @@ export class TOLANFTMintService {
         }
 
         const tx = new Transaction();
-        tx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }));
+        tx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 130_000 }));
+tx.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: Number(process.env.PRIORITY_FEE_MICROLAMPORTS || 2000) }));
+
         tx.add(this.buildCreateMetadataV3Ix({
             metadata: metadataAddress, mint, mintAuthority: treasury, payer: treasury, updateAuthority: treasury,
             name: request.name, symbol: 'TOLA', uri: request.uri, sellerFeeBasisPoints: bps,
