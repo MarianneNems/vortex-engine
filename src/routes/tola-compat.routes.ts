@@ -207,6 +207,9 @@ router.post('/create-collection', adminAuthMiddleware, async (req: Request, res:
             sellerFeeBasisPoints: typeof b.seller_fee_basis_points === 'number' ? b.seller_fee_basis_points : undefined,
             dryRun: b.dry_run !== false,
             approvedHash: typeof b.approved_hash === 'string' ? b.approved_hash : undefined,
+            // 'tola' (the daily line, already created) or 'creator' (member works).
+            lane: typeof b.lane === 'string' ? b.lane : undefined,
+            symbol: typeof b.symbol === 'string' ? b.symbol : undefined,
         });
         return res.status(result.success || result.refused === 'dry_run_only' ? 200 : 422).json(result);
     } catch (e: any) {
