@@ -97,6 +97,23 @@ function testHmac(): void {
     ok('secret with trailing whitespace still matches the clean value');
     process.env.WP_RAILWAY_SHARED_SECRET = GOOD_SECRET;
 
+    // REGRESSION: a body carrying a URI. PHP's wp_json_encode escapes forward slashes as
+    // "ipfs:\/\/", Node's JSON.stringify does not. Verification must use the RAW bytes, so a
+    // signature made over the PHP form has to verify even though the parsed object would
+    // re-stringify differently. This exact case refused every real mint in production.
+    _resetReplayCache();
+    const phpRaw = '{"metadata_uri":"ipfs:\\/\\/QmAbc123","name":"x"}';
+    const parsed = JSON.parse(phpRaw);
+    assert.notStrictEqual(JSON.stringify(parsed), phpRaw); // the two forms really do differ
+    const tsu = String(Math.floor(Date.now() / 1000));
+    const sigu = crypto.createHmac('sha256', GOOD_SECRET).update(`${tsu}.${phpRaw}`).digest('hex');
+    const st = { status: 0, payload: null as any, passed: false };
+    const reqU: any = { body: parsed, rawBody: phpRaw, headers: { 'x-vortex-timestamp': tsu, 'x-vortex-signature': sigu } };
+    const resU: any = { status(c: number) { st.status = c; return resU; }, json(p: any) { st.payload = p; return resU; } };
+    requireWpHmac(reqU, resU, () => { st.passed = true; });
+    assert.strictEqual(st.passed, true);
+    ok('body with escaped slashes verifies against its raw bytes');
+
     // valid once, replay refused
     _resetReplayCache();
     const h2 = sign({ a: 1 }, GOOD_SECRET);

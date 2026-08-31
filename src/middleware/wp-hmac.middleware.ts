@@ -41,6 +41,36 @@ function pruneReplayCache(now: number): void {
 export function _resetReplayCache(): void { seenSignatures.clear(); }
 
 /**
+ * Capture the exact request bytes for the mint routes, before any JSON parsing.
+ *
+ * The signature is computed over the RAW body, so the bytes must survive untouched. Falling
+ * back to re-stringifying the parsed object silently breaks any request whose values contain
+ * a forward slash: PHP's wp_json_encode writes "ipfs:\/\/Qm...", while JSON.stringify writes
+ * "ipfs://Qm...". Those are different strings, so the HMAC could never match, and since every
+ * real mint carries an ipfs:// URI, every real mint would have been refused.
+ *
+ * The shared webhook capture cannot be reused here: it is hard-guarded to paths containing
+ * '/webhooks/' and quietly does nothing for anything else.
+ *
+ * _body is set so body-parser recognises the body as already handled and does not attempt to
+ * read the consumed stream.
+ */
+export function captureMintRawBody(req: Request, res: Response, next: NextFunction) {
+    if ((req as any)._body) { return next(); }
+    let data = '';
+    req.setEncoding('utf8');
+    req.on('data', (chunk: string) => { data += chunk; });
+    req.on('end', () => {
+        (req as any).rawBody = data;
+        try { req.body = data ? JSON.parse(data) : {}; }
+        catch { req.body = {}; }
+        (req as any)._body = true;
+        next();
+    });
+    req.on('error', () => next());
+}
+
+/**
  * Dashboard-pasted environment values very often carry a trailing space or newline that is
  * invisible in the UI. WordPress trims its side, so without trimming here an otherwise
  * correct secret produces an endless, unexplainable signature mismatch.

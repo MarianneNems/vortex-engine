@@ -77,14 +77,16 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 
 // Import raw body middleware for webhook signature verification
 import { rawBodyMiddleware } from './middleware/woo-hmac.middleware';
+import { captureMintRawBody } from './middleware/wp-hmac.middleware';
 
 // Capture raw body for webhook routes BEFORE JSON parsing
 app.use('/wc/webhooks', rawBodyMiddleware);
 app.use('/wp/webhooks', rawBodyMiddleware);
 app.use('/webhooks', rawBodyMiddleware);
-// The user-mint HMAC signs the raw body byte-for-byte, so it must be captured
-// before JSON parsing, exactly like the webhook routes above.
-app.use('/api/mint', rawBodyMiddleware);
+// The user-mint HMAC signs the raw body byte-for-byte, so it must be captured before JSON
+// parsing. It cannot use rawBodyMiddleware above: that one only acts on paths containing
+// '/webhooks/' and would silently leave rawBody unset here.
+app.use('/api/mint', captureMintRawBody);
 
 // Body parsing with size limits (for non-webhook routes)
 app.use(bodyParser.json({ limit: '10mb' }));
