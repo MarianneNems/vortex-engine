@@ -82,6 +82,9 @@ import { rawBodyMiddleware } from './middleware/woo-hmac.middleware';
 app.use('/wc/webhooks', rawBodyMiddleware);
 app.use('/wp/webhooks', rawBodyMiddleware);
 app.use('/webhooks', rawBodyMiddleware);
+// The user-mint HMAC signs the raw body byte-for-byte, so it must be captured
+// before JSON parsing, exactly like the webhook routes above.
+app.use('/api/mint', rawBodyMiddleware);
 
 // Body parsing with size limits (for non-webhook routes)
 app.use(bodyParser.json({ limit: '10mb' }));
@@ -178,6 +181,8 @@ const wpWebhookRoutes = safeLoadRoute('wp-webhooks', '/wp', () => require('./rou
 const vaultRoutes = safeLoadRoute('vault', '/vault-analyze', () => require('./routes/vault.routes').vaultRoutes);
 // Backward-compat: PHP callers use /api/tola/mint-nft, /api/tola/transfer, /api/tola/balance/:wallet, etc.
 const tolaCompatRoutes = safeLoadRoute('tola-compat', '/api/tola', () => require('./routes/tola-compat.routes').tolaCompatRoutes);
+// Canonical user-mint pathway - WordPress-HMAC only, fail closed.
+const userMintRoutes = safeLoadRoute('user-mint', '/api/mint', () => require('./routes/user-mint.routes').default);
 // Storyboard multi-image film composer (FFmpeg). Best-practice host because the
 // engine already has Node, storage, and the local-file URL pattern.
 const storyboardComposeRoutes = safeLoadRoute('storyboard-compose', '/api/storyboard', () => require('./routes/storyboard-compose.routes').storyboardComposeRoutes);
@@ -203,6 +208,7 @@ if (usdcRoutes) app.use('/api/usdc', usdcRoutes);
 if (wpWebhookRoutes) app.use('/wp', wpWebhookRoutes);
 if (vaultRoutes) app.use('/vault-analyze', vaultRoutes);
 if (tolaCompatRoutes) app.use('/api/tola', tolaCompatRoutes);
+if (userMintRoutes) app.use('/api/mint', userMintRoutes);
 if (storyboardComposeRoutes) app.use('/api/storyboard', storyboardComposeRoutes);
 
 // ============================================
@@ -382,6 +388,7 @@ app.get('/health', async (req, res) => {
         status: healthy === total ? 'healthy' : healthy > total / 2 ? 'degraded' : 'unhealthy',
         version: '4.0.0',
         build: '2026-01-16-PRODUCTION',
+        commit: process.env.RAILWAY_GIT_COMMIT_SHA || 'unknown',
         uptime_seconds: Math.floor(process.uptime()),
         timestamp: new Date().toISOString(),
         services: serviceStatus,

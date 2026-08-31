@@ -901,6 +901,325 @@ tx.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: Math.min(1_000_
     /**
      * Mint a new NFT
      */
+    // ===================================================================
+    // CANONICAL USER-MINT PATHWAY (Founder directive 2026-08-31)
+    //
+    // Deterministic mint address from the idempotency key, Master Edition with
+    // zero prints, verified membership in a canonical collection, fixed 500 bps,
+    // creator verification DERIVED from the actual signer, permanent ipfs://|ar://
+    // metadata with exact artwork SHA-256 binding. Repeated calls with the same
+    // idempotency key converge on the SAME mint - a retry can finish an
+    // interrupted mint but can never create a second NFT.
+    // ===================================================================
+
+    /**
+     * Same key -> same seed -> same keypair -> same mint address, on every retry,
+     * from any process. The secret keeps the mapping unforgeable: without it,
+     * knowing a key reveals nothing and choosing a mint address is impossible.
+     */
+    private deriveUserMintKeypair(idempotencyKey: string): Keypair {
+        const secret = process.env.MINT_IDEMPOTENCY_SECRET || '';
+        if (Buffer.byteLength(secret, 'utf8') < 32) {
+            throw new Error('MINT_IDEMPOTENCY_SECRET missing or shorter than 32 bytes - user minting is disabled (fail closed)');
+        }
+        if (secret === (process.env.WP_RAILWAY_SHARED_SECRET || '')) {
+            throw new Error('MINT_IDEMPOTENCY_SECRET must be distinct from WP_RAILWAY_SHARED_SECRET');
+        }
+        const seed = createHash('sha256').update(`${secret}:${idempotencyKey}`).digest();
+        return Keypair.fromSeed(seed);
+    }
+
+    private boundedPriorityFee(): number {
+        return Math.min(1_000_000, Math.max(0, Number(process.env.PRIORITY_FEE_MICROLAMPORTS || 200000)));
+    }
+
+    private resolveCanonicalCollection(which: string): PublicKey {
+        const envName = which === 'tola' ? 'TOLA_COLLECTION_MINT' : 'VORTEX_CREATOR_COLLECTION_MINT';
+        const v = process.env[envName] || '';
+        if (!v) { throw new Error(`${envName} is not installed - collection membership cannot be verified (fail closed)`); }
+        return new PublicKey(v);
+    }
+
+    /**
+     * Fetch the metadata JSON through independent gateways and prove the artwork binding.
+     * Both gateways must return byte-identical content; the JSON must reference the exact
+     * artwork SHA-256 and a permanent image URI. Any failure refuses the mint.
+     */
+    private async proveArtworkBinding(metadataUri: string, artworkSha256: string): Promise<{ ok: boolean; reason?: string }> {
+        try {
+            let urls: string[];
+            if (metadataUri.startsWith('ipfs://')) {
+                const cid = metadataUri.slice('ipfs://'.length);
+                urls = [`https://gateway.pinata.cloud/ipfs/${cid}`, `https://ipfs.io/ipfs/${cid}`];
+            } else if (metadataUri.startsWith('ar://')) {
+                const tx = metadataUri.slice('ar://'.length);
+                urls = [`https://arweave.net/${tx}`];
+            } else {
+                return { ok: false, reason: 'metadata_uri must be ipfs:// or ar://' };
+            }
+            const bodies: Buffer[] = [];
+            for (const u of urls) {
+                const r = await axios.get(u, { responseType: 'arraybuffer', timeout: 30000 });
+                bodies.push(Buffer.from(r.data));
+            }
+            if (bodies.length === 2) {
+                const h0 = createHash('sha256').update(bodies[0] as any).digest('hex');
+                const h1 = createHash('sha256').update(bodies[1] as any).digest('hex');
+                if (h0 !== h1) { return { ok: false, reason: 'gateways disagree on metadata content' }; }
+            }
+            const json = JSON.parse(bodies[0].toString('utf8'));
+            const image = String(json.image || '');
+            if (!/^(ipfs|ar):\/\//.test(image)) { return { ok: false, reason: 'metadata image is not a permanent ipfs:// or ar:// URI' }; }
+            if (!JSON.stringify(json).toLowerCase().includes(artworkSha256.toLowerCase())) {
+                return { ok: false, reason: 'metadata does not carry the declared artwork SHA-256' };
+            }
+            return { ok: true };
+        } catch (e: any) {
+            return { ok: false, reason: `metadata unreachable: ${e.message}` };
+        }
+    }
+
+    /** Read the derived mint's on-chain state: the ground truth for idempotency and status. */
+    async userMintStatus(idempotencyKey: string): Promise<{
+        success: boolean; state: string; mint_address: string;
+        metadata_pda?: string; edition_pda?: string; collection_verified?: boolean; error?: string;
+    }> {
+        try {
+            const mintKp = this.deriveUserMintKeypair(idempotencyKey);
+            const mint = mintKp.publicKey;
+            const connection = this.getConnection();
+            const info = await connection.getAccountInfo(mint);
+            if (!info) {
+                return { success: true, state: 'not_started', mint_address: mint.toBase58() };
+            }
+            const metadataPda = this.getMetadataAddress(mint);
+            const editionPda = this.getMasterEditionAddress(mint);
+            const metaInfo = await connection.getAccountInfo(metadataPda);
+            if (!metaInfo) {
+                // tx1 is atomic, so a derived mint without metadata means an outside write
+                // landed on our derived address - stop and reconcile, never build on it.
+                return { success: true, state: 'state_conflict', mint_address: mint.toBase58() };
+            }
+            const verified = this.readCollectionVerified(metaInfo.data);
+            return {
+                success: true,
+                state: verified ? 'finalized' : 'awaiting_collection_verify',
+                mint_address: mint.toBase58(),
+                metadata_pda: metadataPda.toBase58(),
+                edition_pda: editionPda.toBase58(),
+                collection_verified: verified,
+            };
+        } catch (e: any) {
+            return { success: false, state: 'error', mint_address: '', error: e.message };
+        }
+    }
+
+    /** Sequential borsh walk to the collection struct's verified byte. */
+    private readCollectionVerified(raw: Buffer): boolean {
+        try {
+            let o = 1 + 32 + 32;
+            const str = () => { const len = raw.readUInt32LE(o); o += 4 + len; };
+            str(); str(); str();                       // name, symbol, uri
+            o += 2;                                     // seller fee
+            if (raw[o] === 1) { o += 1; const n = raw.readUInt32LE(o); o += 4 + n * 34; } else { o += 1; }
+            o += 2;                                     // primary_sale + is_mutable
+            o += raw[o] === 1 ? 2 : 1;                  // edition_nonce
+            o += raw[o] === 1 ? 2 : 1;                  // token_standard
+            if (raw[o] !== 1) { return false; }         // collection: None
+            return raw[o + 1] === 1;
+        } catch { return false; }
+    }
+
+    /**
+     * Execute (or resume) one canonical user mint. Fail-closed on every gate; the only
+     * states this leaves behind are "nothing happened" and steps that are individually
+     * complete and verifiable on chain.
+     */
+    async userMint(request: {
+        idempotency_key: string;
+        name: string;
+        metadata_uri: string;
+        artwork_sha256: string;
+        recipient_wallet: string;
+        collection: string;
+        attribution_creator?: string;
+        payment?: { currency?: string; state?: string };
+        royalty_bps?: number;
+        dry_run?: boolean;
+    }): Promise<any> {
+        if (!this.initialized || !this.treasuryKeypair) {
+            return { success: false, code: 'SIGNER_UNAVAILABLE', error: 'Treasury signer not configured' };
+        }
+        const refuse = (code: string, error: string) => ({ success: false, code, error });
+
+        // ------------------------- request law -------------------------
+        const key = String(request.idempotency_key || '');
+        if (!/^[A-Za-z0-9._:-]{16,128}$/.test(key)) {
+            return refuse('IDEMPOTENCY_KEY_INVALID', 'idempotency_key must be 16-128 chars of [A-Za-z0-9._:-]');
+        }
+        const name = String(request.name || '').trim();
+        if (!name || name.length > 32) { return refuse('NAME_INVALID', 'name must be 1-32 characters'); }
+        const uri = String(request.metadata_uri || '');
+        if (!/^(ipfs|ar):\/\/[A-Za-z0-9_-]{20,}/.test(uri)) {
+            return refuse('METADATA_NOT_PERMANENT', 'metadata_uri must be a native ipfs:// or ar:// URI - gateway and http forms are refused for user mints');
+        }
+        const artSha = String(request.artwork_sha256 || '').toLowerCase();
+        if (!/^[0-9a-f]{64}$/.test(artSha)) { return refuse('ARTWORK_SHA256_MISSING', 'artwork_sha256 must be a 64-hex SHA-256'); }
+        if (request.royalty_bps !== undefined && Number(request.royalty_bps) !== IMMUTABLE_ROYALTY.BPS) {
+            return refuse('ROYALTY_NOT_500', 'royalty is fixed at 500 bps and cannot be changed per mint');
+        }
+        const pay = request.payment || {};
+        const currency = String(pay.currency || '').toLowerCase();
+        const payState = String(pay.state || '').toLowerCase();
+        if (currency.includes('tola') || payState.includes('tola')) {
+            return refuse('TOLA_PAYMENT_REFUSED', 'TOLA is never a payment currency. Pay in USD or USDC, or use a subscription entitlement.');
+        }
+        const paid = (payState === 'paid' && (currency === 'usd' || currency === 'usdc'));
+        const included = (payState === 'included');
+        if (!paid && !included) {
+            return refuse('PAYMENT_NOT_CONFIRMED', 'payment must be state=paid with currency usd|usdc, or state=included via subscription entitlement');
+        }
+        let recipient: PublicKey;
+        try { recipient = new PublicKey(String(request.recipient_wallet || '')); }
+        catch { return refuse('RECIPIENT_INVALID', 'recipient_wallet is not a valid Solana address'); }
+        if (request.collection !== 'tola' && request.collection !== 'creator') {
+            return refuse('COLLECTION_INVALID', 'collection must be "tola" or "creator"');
+        }
+
+        // ------------------------- derived state -------------------------
+        let mintKp: Keypair; let collectionMint: PublicKey;
+        try {
+            mintKp = this.deriveUserMintKeypair(key);
+            collectionMint = this.resolveCanonicalCollection(request.collection);
+        } catch (e: any) {
+            return refuse('MINT_CONFIG_MISSING', e.message);
+        }
+        const mint = mintKp.publicKey;
+        const metadataPda = this.getMetadataAddress(mint);
+        const editionPda = this.getMasterEditionAddress(mint);
+        const collectionMetadata = this.getMetadataAddress(collectionMint);
+        const collectionEdition = this.getMasterEditionAddress(collectionMint);
+        const treasury = this.treasuryKeypair.publicKey;
+        const connection = this.getConnection();
+        const dryRun = request.dry_run !== false;
+
+        // Idempotent resume: chain state decides what remains to be done.
+        const existing = await connection.getAccountInfo(mint);
+        let needCreate = !existing;
+        if (existing) {
+            const metaInfo = await connection.getAccountInfo(metadataPda);
+            if (!metaInfo) {
+                return refuse('USER_MINT_STATE_CONFLICT',
+                    'the derived mint address exists without our metadata - reconcile before any further write');
+            }
+            if (this.readCollectionVerified(metaInfo.data)) {
+                return {
+                    success: true, already_finalized: true, state: 'finalized',
+                    mint_address: mint.toBase58(), metadata_pda: metadataPda.toBase58(),
+                    edition_pda: editionPda.toBase58(), collection_mint: collectionMint.toBase58(),
+                    collection_verified: true, royalty_bps: IMMUTABLE_ROYALTY.BPS,
+                    artwork_sha256: artSha, metadata_uri: uri,
+                };
+            }
+        }
+
+        // Artwork binding proven through independent gateways before anything is built.
+        const binding = await this.proveArtworkBinding(uri, artSha);
+        if (!binding.ok) { return refuse('NFT_VISUAL_BINDING_FAILED', binding.reason || 'binding unproven'); }
+
+        // Honest creators: royalty wallet is verified ONLY when it is the actual signer.
+        const royaltyWallet = new PublicKey(IMMUTABLE_ROYALTY.WALLET);
+        const creators: Array<{ address: PublicKey; verified: boolean; share: number }> = [];
+        if (request.attribution_creator) {
+            try {
+                const attr = new PublicKey(request.attribution_creator);
+                if (!attr.equals(royaltyWallet)) { creators.push({ address: attr, verified: false, share: 0 }); }
+            } catch { return refuse('ATTRIBUTION_INVALID', 'attribution_creator is not a valid Solana address'); }
+        }
+        creators.push({ address: royaltyWallet, verified: royaltyWallet.equals(treasury), share: 100 });
+
+        const priorityFee = this.boundedPriorityFee();
+        const results: any = {
+            mint_address: mint.toBase58(), metadata_pda: metadataPda.toBase58(),
+            edition_pda: editionPda.toBase58(), collection_mint: collectionMint.toBase58(),
+            royalty_bps: IMMUTABLE_ROYALTY.BPS, artwork_sha256: artSha, metadata_uri: uri,
+            recipient: recipient.toBase58(), dry_run: dryRun, signatures: {} as Record<string, string>,
+        };
+
+        const { createInitializeMintInstruction, createMintToInstruction } = await import('@solana/spl-token');
+        const tokenAccount = await getAssociatedTokenAddress(mint, recipient);
+        results.token_account = tokenAccount.toBase58();
+
+        if (needCreate) {
+            const mintRent = await connection.getMinimumBalanceForRentExemption(82);
+            const tx1 = new Transaction();
+            tx1.add(
+                ComputeBudgetProgram.setComputeUnitLimit({ units: 400000 }),
+                ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priorityFee }),
+                SystemProgram.createAccount({
+                    fromPubkey: treasury, newAccountPubkey: mint, space: 82,
+                    lamports: mintRent, programId: TOKEN_PROGRAM_ID,
+                }),
+                // Freeze authority is set to the treasury ONLY so CreateMasterEditionV3 can
+                // move it (with the mint authority) to the edition PDA in this same atomic
+                // transaction. After tx1 no key on this platform can freeze or mint again.
+                createInitializeMintInstruction(mint, 0, treasury, treasury),
+                createAssociatedTokenAccountInstruction(treasury, tokenAccount, recipient, mint),
+                createMintToInstruction(mint, tokenAccount, treasury, 1),
+                this.buildCreateMetadataV3Ix({
+                    metadata: metadataPda, mint, mintAuthority: treasury, payer: treasury,
+                    updateAuthority: treasury, name, symbol: 'VORTEX', uri,
+                    sellerFeeBasisPoints: IMMUTABLE_ROYALTY.BPS, creators,
+                    collection: collectionMint,
+                }),
+                this.buildCreateMasterEditionV3Ix({
+                    edition: editionPda, mint, updateAuthority: treasury,
+                    mintAuthority: treasury, payer: treasury, metadata: metadataPda, maxSupply: 0,
+                }),
+            );
+            const bh1 = await connection.getLatestBlockhash('confirmed');
+            tx1.recentBlockhash = bh1.blockhash;
+            tx1.feePayer = treasury;
+
+            const sim = await connection.simulateTransaction(tx1, [this.treasuryKeypair, mintKp]);
+            if (sim.value.err) {
+                return refuse('MINT_SIMULATION_FAILED', JSON.stringify(sim.value.err));
+            }
+            results.simulated = true;
+            if (dryRun) {
+                results.success = true; results.state = 'simulated_only';
+                return results;
+            }
+            results.signatures.mint_tx = await sendAndConfirmTransaction(
+                connection, tx1, [this.treasuryKeypair, mintKp], { commitment: 'confirmed' });
+        } else if (dryRun) {
+            results.success = true; results.state = 'simulated_only';
+            results.note = 'mint exists; a live run would only verify collection membership';
+            return results;
+        }
+
+        const tx2 = new Transaction();
+        tx2.add(
+            ComputeBudgetProgram.setComputeUnitLimit({ units: 90000 }),
+            ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priorityFee }),
+            this.buildVerifySizedCollectionItemIx({
+                metadata: metadataPda, collectionAuthority: treasury, payer: treasury,
+                collectionMint, collectionMetadata, collectionMasterEdition: collectionEdition,
+            }),
+        );
+        const bh2 = await connection.getLatestBlockhash('confirmed');
+        tx2.recentBlockhash = bh2.blockhash;
+        tx2.feePayer = treasury;
+        results.signatures.verify_tx = await sendAndConfirmTransaction(
+            connection, tx2, [this.treasuryKeypair], { commitment: 'confirmed' });
+
+        const finalMeta = await connection.getAccountInfo(metadataPda);
+        results.collection_verified = finalMeta ? this.readCollectionVerified(finalMeta.data) : false;
+        results.success = results.collection_verified === true;
+        results.state = results.success ? 'finalized' : 'verify_unconfirmed';
+        return results;
+    }
+
     async mintNFT(request: NFTMintRequest): Promise<NFTMintResult> {
         if (!this.initialized || !this.treasuryKeypair) {
             return {
