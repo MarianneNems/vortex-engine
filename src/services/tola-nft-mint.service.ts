@@ -496,7 +496,7 @@ export class TOLANFTMintService {
 
         const tx = new Transaction();
         tx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 160_000 }));
-tx.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: Number(process.env.PRIORITY_FEE_MICROLAMPORTS || 200000) }));
+tx.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: Math.min(1_000_000, Math.max(0, Number(process.env.PRIORITY_FEE_MICROLAMPORTS || 200000))) }));
 
         tx.add(SystemProgram.createAccountWithSeed({
             fromPubkey: treasury, newAccountPubkey: mint, basePubkey: treasury,
@@ -606,7 +606,7 @@ tx.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: Number(process.
 
         const tx = new Transaction();
         tx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 90_000 }));
-        tx.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: Number(process.env.PRIORITY_FEE_MICROLAMPORTS || 200000) }));
+        tx.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: Math.min(1_000_000, Math.max(0, Number(process.env.PRIORITY_FEE_MICROLAMPORTS || 200000))) }));
         tx.add(this.buildSetAndVerifySizedCollectionItemIx({
             metadata: itemMetadata, collectionAuthority: treasury, payer: treasury, updateAuthority: treasury,
             collectionMint, collectionMetadata: this.getMetadataAddress(collectionMint),
@@ -787,7 +787,7 @@ tx.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: Number(process.
 
         const tx = new Transaction();
         tx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 130_000 }));
-tx.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: Number(process.env.PRIORITY_FEE_MICROLAMPORTS || 200000) }));
+tx.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: Math.min(1_000_000, Math.max(0, Number(process.env.PRIORITY_FEE_MICROLAMPORTS || 200000))) }));
 
         tx.add(this.buildCreateMetadataV3Ix({
             metadata: metadataAddress, mint, mintAuthority: treasury, payer: treasury, updateAuthority: treasury,
