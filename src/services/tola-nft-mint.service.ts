@@ -951,24 +951,47 @@ tx.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: Math.min(1_000_
     private async proveArtworkBinding(metadataUri: string, artworkSha256: string): Promise<{ ok: boolean; reason?: string }> {
         try {
             let urls: string[];
+            let needed: number;
             if (metadataUri.startsWith('ipfs://')) {
                 const cid = metadataUri.slice('ipfs://'.length);
-                urls = [`https://gateway.pinata.cloud/ipfs/${cid}`, `https://ipfs.io/ipfs/${cid}`];
+                // A public gateway can rate-limit or refuse (403) while the content is perfectly
+                // pinned and served elsewhere. Requiring two SPECIFIC gateways would turn one
+                // gateway's bad day into a refused mint, so try several and require any two
+                // independent ones to agree.
+                urls = [
+                    `https://ipfs.io/ipfs/${cid}`,
+                    `https://gateway.pinata.cloud/ipfs/${cid}`,
+                    `https://dweb.link/ipfs/${cid}`,
+                    `https://cloudflare-ipfs.com/ipfs/${cid}`,
+                    `https://w3s.link/ipfs/${cid}`,
+                ];
+                needed = 2;
             } else if (metadataUri.startsWith('ar://')) {
                 const tx = metadataUri.slice('ar://'.length);
-                urls = [`https://arweave.net/${tx}`];
+                urls = [`https://arweave.net/${tx}`, `https://ar-io.net/${tx}`];
+                needed = 1;
             } else {
                 return { ok: false, reason: 'metadata_uri must be ipfs:// or ar://' };
             }
             const bodies: Buffer[] = [];
+            const failures: string[] = [];
             for (const u of urls) {
-                const r = await axios.get(u, { responseType: 'arraybuffer', timeout: 30000 });
-                bodies.push(Buffer.from(r.data));
+                if (bodies.length >= needed) { break; }
+                try {
+                    const r = await axios.get(u, { responseType: 'arraybuffer', timeout: 30000 });
+                    bodies.push(Buffer.from(r.data));
+                } catch (e: any) {
+                    let host = u;
+                    try { host = new URL(u).hostname; } catch { /* keep full url */ }
+                    failures.push(`${host}: ${e?.response?.status || e.message}`);
+                }
             }
-            if (bodies.length === 2) {
-                const h0 = createHash('sha256').update(bodies[0] as any).digest('hex');
-                const h1 = createHash('sha256').update(bodies[1] as any).digest('hex');
-                if (h0 !== h1) { return { ok: false, reason: 'gateways disagree on metadata content' }; }
+            if (bodies.length < needed) {
+                return { ok: false, reason: `metadata served by fewer than ${needed} independent gateways (${failures.join('; ')})` };
+            }
+            const digests = bodies.map(b => createHash('sha256').update(b as any).digest('hex'));
+            if (digests.some(d => d !== digests[0])) {
+                return { ok: false, reason: 'gateways disagree on metadata content' };
             }
             const json = JSON.parse(bodies[0].toString('utf8'));
             const image = String(json.image || '');
