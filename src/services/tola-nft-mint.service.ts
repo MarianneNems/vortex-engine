@@ -918,11 +918,14 @@ tx.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: Math.min(1_000_
      * knowing a key reveals nothing and choosing a mint address is impossible.
      */
     private deriveUserMintKeypair(idempotencyKey: string): Keypair {
-        const secret = process.env.MINT_IDEMPOTENCY_SECRET || '';
+        // Trimmed for the same reason as the shared secret: dashboard-pasted values routinely
+        // carry invisible trailing whitespace, and an untrimmed value would silently derive a
+        // different mint address than the same secret entered cleanly.
+        const secret = (process.env.MINT_IDEMPOTENCY_SECRET || '').trim();
         if (Buffer.byteLength(secret, 'utf8') < 32) {
             throw new Error('MINT_IDEMPOTENCY_SECRET missing or shorter than 32 bytes - user minting is disabled (fail closed)');
         }
-        if (secret === (process.env.WP_RAILWAY_SHARED_SECRET || '')) {
+        if (secret === (process.env.WP_RAILWAY_SHARED_SECRET || '').trim()) {
             throw new Error('MINT_IDEMPOTENCY_SECRET must be distinct from WP_RAILWAY_SHARED_SECRET');
         }
         const seed = createHash('sha256').update(`${secret}:${idempotencyKey}`).digest();
@@ -935,7 +938,7 @@ tx.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: Math.min(1_000_
 
     private resolveCanonicalCollection(which: string): PublicKey {
         const envName = which === 'tola' ? 'TOLA_COLLECTION_MINT' : 'VORTEX_CREATOR_COLLECTION_MINT';
-        const v = process.env[envName] || '';
+        const v = (process.env[envName] || '').trim();
         if (!v) { throw new Error(`${envName} is not installed - collection membership cannot be verified (fail closed)`); }
         return new PublicKey(v);
     }

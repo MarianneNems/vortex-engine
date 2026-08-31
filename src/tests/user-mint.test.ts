@@ -86,6 +86,17 @@ function testHmac(): void {
     assert.strictEqual(c.state.status, 401);
     ok('wrong secret refuses with 401');
 
+    // whitespace tolerance: a dashboard paste that picked up a trailing newline must still
+    // verify against a signature made with the clean value. This exact invisible difference
+    // is what produced an unexplainable mismatch in production.
+    _resetReplayCache();
+    process.env.WP_RAILWAY_SHARED_SECRET = GOOD_SECRET + '\n';
+    c = mockReqRes({ a: 9 }, sign({ a: 9 }, GOOD_SECRET));
+    requireWpHmac(c.req, c.res, c.next);
+    assert.strictEqual(c.state.passed, true);
+    ok('secret with trailing whitespace still matches the clean value');
+    process.env.WP_RAILWAY_SHARED_SECRET = GOOD_SECRET;
+
     // valid once, replay refused
     _resetReplayCache();
     const h2 = sign({ a: 1 }, GOOD_SECRET);

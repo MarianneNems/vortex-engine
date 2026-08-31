@@ -40,8 +40,32 @@ function pruneReplayCache(now: number): void {
 /** Exposed for tests: clear replay state between cases. */
 export function _resetReplayCache(): void { seenSignatures.clear(); }
 
+/**
+ * Dashboard-pasted environment values very often carry a trailing space or newline that is
+ * invisible in the UI. WordPress trims its side, so without trimming here an otherwise
+ * correct secret produces an endless, unexplainable signature mismatch.
+ */
+function sharedSecret(): string {
+    return (process.env.WP_RAILWAY_SHARED_SECRET || '').trim();
+}
+
+/**
+ * One-time startup fingerprint. This is the first 16 hex characters of the SHA-256 of the
+ * trimmed secret, which cannot be reversed into the secret, but can be compared against the
+ * same fingerprint taken on the WordPress server to prove whether the two sides agree.
+ */
+(() => {
+    const s = sharedSecret();
+    if (!s) {
+        logger.warn('[WP HMAC] no shared secret installed - the mint pathway is disabled');
+        return;
+    }
+    const fp = crypto.createHash('sha256').update(s).digest('hex').slice(0, 16);
+    logger.info(`[WP HMAC] shared secret loaded: length=${s.length} fingerprint=${fp}`);
+})();
+
 export function requireWpHmac(req: Request, res: Response, next: NextFunction) {
-    const secret = process.env.WP_RAILWAY_SHARED_SECRET || '';
+    const secret = sharedSecret();
     if (Buffer.byteLength(secret, 'utf8') < 32) {
         logger.error('[WP HMAC] WP_RAILWAY_SHARED_SECRET missing or shorter than 32 bytes - refusing (fail closed)');
         return res.status(503).json({
