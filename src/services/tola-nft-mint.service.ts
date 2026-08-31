@@ -532,7 +532,11 @@ tx.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: Math.min(1_000_
             payer: treasury, metadata: metadataAddress, maxSupply: 0,
         }));
 
-        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('finalized');
+        // 'confirmed', not 'finalized': a finalized blockhash is already ~32 slots old, so the
+        // transaction begins life with a fifth of its 150-slot validity spent and dies in
+        // transit under any latency. Blockhashes are never part of the approval hash, so this
+        // affects delivery only, never what gets written.
+        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
         tx.recentBlockhash = blockhash; tx.feePayer = treasury;
 
         let sim;
@@ -627,7 +631,11 @@ tx.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: Math.min(1_000_
             collectionMint, collectionMetadata: this.getMetadataAddress(collectionMint),
             collectionMasterEdition: this.getMasterEditionAddress(collectionMint),
         }));
-        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('finalized');
+        // 'confirmed', not 'finalized': a finalized blockhash is already ~32 slots old, so the
+        // transaction begins life with a fifth of its 150-slot validity spent and dies in
+        // transit under any latency. Blockhashes are never part of the approval hash, so this
+        // affects delivery only, never what gets written.
+        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
         tx.recentBlockhash = blockhash; tx.feePayer = treasury;
 
         let simulation: any = null; let simErr: any = null;
@@ -823,7 +831,11 @@ tx.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: Math.min(1_000_
             }));
         }
 
-        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('finalized');
+        // 'confirmed', not 'finalized': a finalized blockhash is already ~32 slots old, so the
+        // transaction begins life with a fifth of its 150-slot validity spent and dies in
+        // transit under any latency. Blockhashes are never part of the approval hash, so this
+        // affects delivery only, never what gets written.
+        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
         tx.recentBlockhash = blockhash;
         tx.feePayer = treasury;
 
