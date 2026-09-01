@@ -30,16 +30,22 @@ const ROYALTY_CONFIG = {
     // Platform wallet for royalty collection
     PLATFORM_ROYALTY_WALLET: process.env.SYSTEM_CREATOR_ROYALTY_WALLET || 'EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz',
     
-    // Secondary sale configuration (FOUNDER RULING - CANARY 50, 2026-08-28).
-    // The governed on-chain royalty is 500 bps total, ratified by law_canonical_solana_mint.
-    // The historical 2000 here conflated the 15% FIRST-SALE platform commission with the
-    // perpetual secondary royalty; baking that into seller_fee_basis_points would charge 20%
-    // on every secondary sale forever. First-sale commission is an off-chain settlement split
-    // and must never appear in on-chain royalty basis points. This constant had no consumer
-    // when corrected; the release test src/tests/royalty-release.test.ts now fails the build
-    // if any non-500 royalty constant reappears anywhere under src/.
-    SECONDARY_SALE_ROYALTY_BPS: 500,  // 5% total on secondary sales - IMMUTABLE
-    PLATFORM_SHARE_OF_ROYALTY: 1.0,   // The single 5% royalty is the platform/creator royalty
+    // LANE-AWARE ROYALTY CANON (Founder-ratified TOLA strategy, 2026-09-01).
+    //
+    // These 500-bps constants remain the truth for two lanes: the member (VORTEX
+    // ARTEC creator-lane) mints, and the 65 historically certified TOLA works whose
+    // on-chain state carries 500 bps as a finalized fact until a Founder-approved
+    // execution manifest updates them.
+    //
+    // NEWLY RELEASED TOLA Masterpiece paths use the canonical 2000 bps (20%):
+    // 5% of gross to the creator of VORTEX and 15% of gross divided equally among
+    // that work's verified participants - a 25/75 split of the royalty pool. That
+    // policy lives in src/config/tola-royalty-policy.ts, frozen, with no
+    // environment override, and src/tests/royalty-release.test.ts enforces both
+    // lanes. The earlier release test's "no non-500 constant" scan is superseded
+    // by these lane-aware assertions.
+    SECONDARY_SALE_ROYALTY_BPS: 500,  // member lane + historical TOLA works
+    PLATFORM_SHARE_OF_ROYALTY: 1.0,   // within the 500-bps lanes only
     
     // Version tracking
     VERSION: '4.0.0',

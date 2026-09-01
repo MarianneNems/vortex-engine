@@ -90,41 +90,18 @@ router.get('/tokens', async (req: Request, res: Response) => {
  * Execute a swap (requires signed transaction)
  */
 router.post('/execute', async (req: Request, res: Response) => {
-    try {
-        const { quote, userPublicKey, wrapUnwrapSOL = true } = req.body;
-        
-        if (!quote || !userPublicKey) {
-            return res.status(400).json({
-                success: false,
-                error: 'Missing quote or userPublicKey'
-            });
-        }
-        
-        logger.info(`[SWAP] Execute request for ${userPublicKey}`);
-        
-        // Get swap transaction from Jupiter
-        const response = await axios.post(`${JUP_API}/swap`, {
-            quoteResponse: quote,
-            userPublicKey,
-            wrapUnwrapSOL
-        });
-        
-        res.json({
-            success: true,
-            data: {
-                swapTransaction: response.data.swapTransaction,
-                lastValidBlockHeight: response.data.lastValidBlockHeight
-            },
-            version: '4.0.0'
-        });
-        
-    } catch (error: any) {
-        logger.error('[SWAP] Execute error:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
+    /*
+     * RETIRED (Founder-ratified TOLA strategy, 2026-09-01): generic swap execution is
+     * not publicly available, and a quote surface must never hand back a signable
+     * transaction. This endpoint used to fetch a ready-to-sign swap transaction from
+     * Jupiter for any caller with no authentication - exactly the capability the
+     * policy forbids. /quote remains read-only.
+     */
+    return res.status(410).json({
+        success: false,
+        code: 'SWAP_EXECUTION_UNAVAILABLE',
+        error: 'Swap execution is not available. Quotes remain read-only.'
+    });
 });
 
 export default router;
