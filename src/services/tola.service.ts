@@ -29,7 +29,14 @@ const CONFIG = {
 };
 
 export interface TolaSnapshot {
-    price: number;
+    /** False when no live market source answered: every numeric field is then null
+     *  and consumers must show "unavailable", never a number. */
+    available?: boolean;
+    /** True when this is cached data being served past its freshness window. */
+    stale?: boolean;
+    /** ISO timestamp of the observation this data came from. */
+    as_of?: string;
+    price: number | null;
     liquidity: number;
     volume24h: number;
     fdv: number;
@@ -209,19 +216,23 @@ export class TolaService {
             
             // Log as info instead of error - expected when TOLA not yet listed
             if (error.message.includes('No TOLA pairs found')) {
-                logger.info('[TOLA] Token not yet listed on Dexscreener - using fallback price $1.00');
+                logger.info('[TOLA] No pairs found on Dexscreener - market data unavailable');
             } else {
                 logger.error('[TOLA] Snapshot error:', error.message);
             }
             
             // Return cached data if available
             if (this.snapshotCache) {
-                logger.info('[TOLA] Returning cached snapshot');
-                return this.snapshotCache.data;
+                logger.info('[TOLA] Live source failed - returning cached snapshot marked STALE');
+                return {
+                    ...this.snapshotCache.data,
+                    stale: true,
+                    as_of: new Date(this.snapshotCache.timestamp).toISOString(),
+                };
             }
-            
-            // Return fallback data
-            return this.getFallbackSnapshot();
+
+            // No live source and no cache: say so. An invented price is worse than none.
+            return this.getUnavailableSnapshot();
         }
     }
     
@@ -229,28 +240,28 @@ export class TolaService {
      * Get fallback snapshot when API fails
      * Uses known TOLA data from Raydium pool
      */
-    private getFallbackSnapshot(): TolaSnapshot {
-        // Fallback to known TOLA/SOL Raydium pair data
-        // Updated: 2026-02-05 from Dexscreener
+    /**
+     * No live source, no cache. Every market number is null and available=false:
+     * the canonical policy forbids invented prices, liquidity or market caps
+     * (the previous fallback hard-coded figures from 2026-02-05 and served them
+     * as current, which is exactly the failure mode the policy names).
+     */
+    private getUnavailableSnapshot(): TolaSnapshot {
         return {
-            price: 0.00001356, // $0.0₅1356 - actual price from Dexscreener
-            liquidity: 2700,   // ~$2.7K liquidity
-            volume24h: 0,
-            fdv: 1300,
-            marketCap: 1300,
-            pairAddress: 'BPPUCMx9Jj3DqDmf2iLNQrG7h3ShiWKqpspqzZvYREXP', // Raydium pool
-            dexId: 'raydium',
-            baseToken: {
-                address: TOLA_MINT,
-                name: 'Token of Love & Appreciation',
-                symbol: 'TOLA'
-            },
-            quoteToken: {
-                address: 'So11111111111111111111111111111111111111112',
-                symbol: 'SOL'
-            },
-            priceChange: { h1: 0, h6: 0, h24: 0 },
-            txns: { buys: 0, sells: 0 },
+            available: false,
+            stale: false,
+            as_of: undefined,
+            price: null,
+            liquidity: null as any,
+            volume24h: null as any,
+            fdv: null as any,
+            marketCap: null as any,
+            pairAddress: '',
+            dexId: '',
+            baseToken: { address: TOLA_MINT, name: 'Token of Love & Appreciation', symbol: 'TOLA' },
+            quoteToken: { address: 'So11111111111111111111111111111111111111112', symbol: 'SOL' },
+            priceChange: { h1: null as any, h6: null as any, h24: null as any },
+            txns: { buys: null as any, sells: null as any },
             links: {
                 dexscreener: `https://dexscreener.com/solana/${TOLA_MINT}`,
                 raydium: `https://raydium.io/swap/?inputCurrency=sol&outputCurrency=${TOLA_MINT}`,
@@ -258,7 +269,7 @@ export class TolaService {
                 jupiter: `https://jup.ag/swap/SOL-${TOLA_MINT}`
             },
             timestamp: new Date().toISOString()
-        };
+        } as TolaSnapshot;
     }
     
     /**
