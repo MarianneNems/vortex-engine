@@ -195,6 +195,12 @@ export class WebhookProcessorService {
                         amount_usdc: payment.amount,
                         order_id: payment.intent_id
                     });
+
+                    // 2026-10-07: USDC moves only through the signed payout endpoint, so this unsigned webhook is
+                    // refused by the transfer service; it reports the refusal instead of a credit that never happened.
+                    if (!result.success) {
+                        return { success: false, action_taken: 'refused', error: result.error, data: { code: result.code } };
+                    }
                     
                     return {
                         success: true,

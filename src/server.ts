@@ -77,7 +77,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 
 // Import raw body middleware for webhook signature verification
 import { rawBodyMiddleware } from './middleware/woo-hmac.middleware';
-import { captureMintRawBody } from './middleware/wp-hmac.middleware';
+import { captureMintRawBody, requirePayoutHmac } from './middleware/wp-hmac.middleware';
 
 // Capture raw body for webhook routes BEFORE JSON parsing
 app.use('/wc/webhooks', rawBodyMiddleware);
@@ -87,6 +87,8 @@ app.use('/webhooks', rawBodyMiddleware);
 // parsing. It cannot use rawBodyMiddleware above: that one only acts on paths containing
 // '/webhooks/' and would silently leave rawBody unset here.
 app.use('/api/mint', captureMintRawBody);
+// The USDC payout endpoint is signed the same way (2026-10-07), so its raw body is captured too.
+app.use('/api/usdc/transfer', captureMintRawBody);
 
 // Body parsing with size limits (for non-webhook routes)
 app.use(bodyParser.json({ limit: '10mb' }));
@@ -188,6 +190,10 @@ const userMintRoutes = safeLoadRoute('user-mint', '/api/mint', () => require('./
 // Storyboard multi-image film composer (FFmpeg). Best-practice host because the
 // engine already has Node, storage, and the local-file URL pattern.
 const storyboardComposeRoutes = safeLoadRoute('storyboard-compose', '/api/storyboard', () => require('./routes/storyboard-compose.routes').storyboardComposeRoutes);
+
+// Payouts (2026-10-07): POST /api/usdc/transfer runs only after the WordPress server's signature is verified, fail
+// closed (no shared secret, no payouts). Registered before every handler of that path, so both handlers sit behind it.
+app.post('/api/usdc/transfer', requirePayoutHmac);
 
 // Mount routes
 if (nftRoutes) app.use('/api/nft', nftRoutes);
@@ -526,13 +532,13 @@ app.get('/tola/stats', async (req, res) => {
 
 app.post('/api/usdc/transfer', async (req, res) => {
     if (!usdcService) return res.status(503).json({ success: false, error: 'USDC service unavailable' });
-    const { user_id, wallet_address, amount_usdc, order_id } = req.body;
+    const { user_id, wallet_address, amount_usdc, order_id, idempotency_key } = req.body;
     if (!user_id || !wallet_address || !amount_usdc) {
         return res.status(400).json({ success: false, error: 'Missing required fields', code: 'VALIDATION_ERROR' });
     }
     try {
-        const result = await usdcService.transferUSDC({ user_id, wallet_address, amount_usdc, order_id });
-        res.status(result.success ? 200 : 500).json(result);
+        const result = await usdcService.transferUSDC({ user_id, wallet_address, amount_usdc, order_id, idempotency_key }, (req as any).vortexSignedPayout);
+        res.status(result.success ? 200 : usdcService.statusFor(result)).json(result);
     } catch (error: any) {
         res.status(500).json({ success: false, error: error.message });
     }

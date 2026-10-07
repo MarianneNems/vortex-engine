@@ -17,6 +17,7 @@
 import { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import { logger } from '../utils/logger';
+import { SIGNED_PAYOUT } from '../services/usdc-transfer.service';
 
 const MAX_SKEW_SECONDS = 300;
 const REPLAY_TTL_MS = (MAX_SKEW_SECONDS * 2 + 60) * 1000;
@@ -94,26 +95,33 @@ function sharedSecret(): string {
     logger.info(`[WP HMAC] shared secret loaded: length=${s.length} fingerprint=${fp}`);
 })();
 
-export function requireWpHmac(req: Request, res: Response, next: NextFunction) {
+type HmacRefusal = { status: number; code: string; error: string };
+
+/**
+ * The one WordPress -> Railway signature check, shared by the mint and payout pathways (2026-10-07). null when the
+ * request is signed with the shared secret, fresh, and not a replay; otherwise the refusal. Codes are suffixes:
+ * AUTH_NOT_CONFIGURED, AUTH_MISSING, AUTH_EXPIRED, AUTH_INVALID, AUTH_REPLAYED.
+ */
+function checkWpHmac(req: Request, what: string): HmacRefusal | null {
     const secret = sharedSecret();
     if (Buffer.byteLength(secret, 'utf8') < 32) {
         logger.error('[WP HMAC] WP_RAILWAY_SHARED_SECRET missing or shorter than 32 bytes - refusing (fail closed)');
-        return res.status(503).json({
-            success: false,
-            code: 'MINT_AUTH_NOT_CONFIGURED',
-            error: 'Mint authorization secret is not installed. The endpoint is disabled until it is.'
-        });
+        return {
+            status: 503,
+            code: 'AUTH_NOT_CONFIGURED',
+            error: `${what} authorization secret is not installed. The endpoint is disabled until it is.`
+        };
     }
 
     const ts = String(req.headers['x-vortex-timestamp'] || '');
     const sig = String(req.headers['x-vortex-signature'] || '');
     if (!/^\d{10}$/.test(ts) || !/^[0-9a-f]{64}$/.test(sig)) {
-        return res.status(401).json({ success: false, code: 'MINT_AUTH_MISSING', error: 'Missing or malformed authorization headers.' });
+        return { status: 401, code: 'AUTH_MISSING', error: 'Missing or malformed authorization headers.' };
     }
 
     const nowSec = Math.floor(Date.now() / 1000);
     if (Math.abs(nowSec - parseInt(ts, 10)) > MAX_SKEW_SECONDS) {
-        return res.status(401).json({ success: false, code: 'MINT_AUTH_EXPIRED', error: 'Authorization timestamp outside the accepted window.' });
+        return { status: 401, code: 'AUTH_EXPIRED', error: 'Authorization timestamp outside the accepted window.' };
     }
 
     const raw = (req as any).rawBody !== undefined
@@ -125,15 +133,36 @@ export function requireWpHmac(req: Request, res: Response, next: NextFunction) {
     const b = Buffer.from(expected, 'hex');
     if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
         logger.warn('[WP HMAC] signature mismatch');
-        return res.status(401).json({ success: false, code: 'MINT_AUTH_INVALID', error: 'Authorization signature does not match the request body.' });
+        return { status: 401, code: 'AUTH_INVALID', error: 'Authorization signature does not match the request body.' };
     }
 
     const now = Date.now();
     pruneReplayCache(now);
     if (seenSignatures.has(sig)) {
-        return res.status(401).json({ success: false, code: 'MINT_AUTH_REPLAYED', error: 'This authorization was already used.' });
+        return { status: 401, code: 'AUTH_REPLAYED', error: 'This authorization was already used.' };
     }
     seenSignatures.set(sig, now + REPLAY_TTL_MS);
 
+    return null;
+}
+
+export function requireWpHmac(req: Request, res: Response, next: NextFunction) {
+    const refusal = checkWpHmac(req, 'Mint');
+    if (refusal) {
+        return res.status(refusal.status).json({ success: false, code: 'MINT_' + refusal.code, error: refusal.error });
+    }
+    return next();
+}
+
+/**
+ * The USDC payout endpoint (2026-10-07): the same signature from the same WordPress server, fail closed (no shared
+ * secret, no payouts). A request that passes is marked, and the transfer service refuses any request without the mark.
+ */
+export function requirePayoutHmac(req: Request, res: Response, next: NextFunction) {
+    const refusal = checkWpHmac(req, 'Payout');
+    if (refusal) {
+        return res.status(refusal.status).json({ success: false, code: 'PAYOUT_' + refusal.code, error: refusal.error });
+    }
+    (req as any).vortexSignedPayout = SIGNED_PAYOUT;
     return next();
 }
