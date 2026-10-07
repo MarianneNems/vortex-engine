@@ -137,20 +137,34 @@ export class USDCTransferService {
             return;
         }
         
-        // Initialize treasury keypair
-        const privateKey = process.env.TREASURY_WALLET_PRIVATE;
+        // The payout treasury has its own key, PAYOUT_TREASURY_PRIVATE (2026-10-07), read here and nowhere else.
+        // TREASURY_WALLET_PRIVATE is also read by the TOLA transfer, NFT mint, collection and marketplace services,
+        // whose routes take only the shared API key: payouts never fall back to it, and a payout key for the same
+        // wallet is refused, so payout funds cannot be reached through those routes. No dedicated key, no payouts.
+        // Trimmed: a value pasted into a dashboard often carries an invisible newline.
+        const privateKey = (process.env.PAYOUT_TREASURY_PRIVATE || '').trim();
         if (privateKey) {
             try {
-                const decoded = bs58.decode(privateKey);
-                this.treasuryKeypair = Keypair.fromSecretKey(decoded);
-                this.initialized = true;
-                logger.info(`[USDC Service] Initialized with treasury: ${this.treasuryKeypair.publicKey.toBase58().slice(0, 8)}...`);
+                const keypair = Keypair.fromSecretKey(bs58.decode(privateKey));
+                let shared: PublicKey | null = null;
+                try {
+                    shared = Keypair.fromSecretKey(bs58.decode((process.env.TREASURY_WALLET_PRIVATE || '').trim())).publicKey;
+                } catch (e) {
+                    shared = null; // absent or unreadable: no other service can sign with it either
+                }
+                if (shared && shared.equals(keypair.publicKey)) {
+                    logger.error('[USDC Service] PAYOUT_TREASURY_PRIVATE is the TREASURY_WALLET_PRIVATE wallet - payouts disabled; use a wallet that only pays out');
+                } else {
+                    this.treasuryKeypair = keypair;
+                    this.initialized = true;
+                    logger.info(`[USDC Service] Initialized with payout treasury: ${keypair.publicKey.toBase58().slice(0, 8)}...`);
+                }
             } catch (error: any) {
-                logger.error('[USDC Service] Invalid TREASURY_WALLET_PRIVATE - check Base58 encoding:', error.message);
+                logger.error('[USDC Service] Invalid PAYOUT_TREASURY_PRIVATE - check Base58 encoding:', error.message);
                 this.treasuryKeypair = null;
             }
         } else {
-            logger.warn('[USDC Service] No TREASURY_WALLET_PRIVATE configured - transfers disabled');
+            logger.warn('[USDC Service] No PAYOUT_TREASURY_PRIVATE configured - payouts disabled');
         }
         
         // Start cache cleanup interval
@@ -219,7 +233,7 @@ export class USDCTransferService {
             return {
                 success: false,
                 code: 'PAYOUT_NOT_CONFIGURED',
-                error: 'Treasury wallet not configured. Please set TREASURY_WALLET_PRIVATE environment variable.'
+                error: 'The payout treasury is not configured (PAYOUT_TREASURY_PRIVATE, a wallet used only for payouts).'
             };
         }
 

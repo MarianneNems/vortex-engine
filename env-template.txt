@@ -20,6 +20,7 @@ SOLANA_RPC_URL=${SOLANA_RPC_URL}
 # ============================================
 # ⚠️ PRIVATE KEY: Set ONLY in Railway dashboard - NEVER in files!
 # TREASURY_WALLET_PRIVATE=<SET_IN_RAILWAY_ONLY>
+# PAYOUT_TREASURY_PRIVATE=<SET_IN_RAILWAY_ONLY> (USDC payouts only: a separate wallet, never the treasury above)
 TREASURY_WALLET_PUBLIC=EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz
 PLATFORM_TREASURY_PUBKEY=EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz
 

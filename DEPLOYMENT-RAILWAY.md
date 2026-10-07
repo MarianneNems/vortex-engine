@@ -40,6 +40,7 @@ SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
 USDC_MINT=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
 TREASURY_WALLET_PUBLIC=<your_public_key>
 TREASURY_WALLET_PRIVATE=<your_private_key_base58>
+PAYOUT_TREASURY_PRIVATE=<private key of a separate wallet used only for USDC payouts>
 ```
 
 ## Step 4: Deploy to Railway

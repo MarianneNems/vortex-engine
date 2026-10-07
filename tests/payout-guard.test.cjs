@@ -20,7 +20,8 @@ const bs58 = require('bs58');
 const SECRET = 'test-shared-secret-' + 'x'.repeat(40);
 const treasury = Keypair.generate();
 process.env.WP_RAILWAY_SHARED_SECRET = SECRET;
-process.env.TREASURY_WALLET_PRIVATE = (bs58.default || bs58).encode(treasury.secretKey);
+process.env.PAYOUT_TREASURY_PRIVATE = (bs58.default || bs58).encode(treasury.secretKey);
+delete process.env.TREASURY_WALLET_PRIVATE; // the shared key the other services read: absent unless a test sets it
 
 const { USDCTransferService, SIGNED_PAYOUT, payoutMark } = require('../dist/services/usdc-transfer.service.js');
 const { requireWpHmac, requirePayoutHmac, captureMintRawBody, _resetReplayCache } = require('../dist/middleware/wp-hmac.middleware.js');
@@ -216,13 +217,118 @@ test('a network failure during the send is treated as unknown, not as failed', a
 });
 
 test('without a treasury key every payout is refused', async () => {
-    const saved = process.env.TREASURY_WALLET_PRIVATE;
-    delete process.env.TREASURY_WALLET_PRIVATE;
+    const saved = process.env.PAYOUT_TREASURY_PRIVATE;
+    delete process.env.PAYOUT_TREASURY_PRIVATE;
     const svc = new USDCTransferService();
-    process.env.TREASURY_WALLET_PRIVATE = saved;
+    process.env.PAYOUT_TREASURY_PRIVATE = saved;
     const r = await svc.transferUSDC(req('tola-dist-0013'), SIGNED_PAYOUT);
     assert.equal(r.code, 'PAYOUT_NOT_CONFIGURED');
     assert.equal(svc.statusFor(r), 503);
+});
+
+// ---- the dedicated payout key (2026-10-07) ----
+const b58 = (k) => (bs58.default || bs58).encode(k.secretKey);
+// Every wallet a service instance can sign with: its own Keypair fields, and the Metaplex identity of the NFT service.
+function signers(svc) {
+    const out = [];
+    for (const v of Object.values(svc)) {
+        if (v && v.publicKey && v.secretKey) { out.push(v.publicKey.toBase58()); }
+    }
+    if (svc.metaplex && 'function' === typeof svc.metaplex.identity) { out.push(svc.metaplex.identity().publicKey.toBase58()); }
+    return out;
+}
+function withEnv(env, fn) {
+    const saved = { PAYOUT_TREASURY_PRIVATE: process.env.PAYOUT_TREASURY_PRIVATE, TREASURY_WALLET_PRIVATE: process.env.TREASURY_WALLET_PRIVATE };
+    for (const [k, v] of Object.entries(env)) { if (undefined === v) { delete process.env[k]; } else { process.env[k] = v; } }
+    try { return fn(); } finally {
+        for (const [k, v] of Object.entries(saved)) { if (undefined === v) { delete process.env[k]; } else { process.env[k] = v; } }
+    }
+}
+
+test('payouts read only PAYOUT_TREASURY_PRIVATE: the shared treasury key alone leaves them closed (no fallback)', async () => {
+    const shared = Keypair.generate();
+    const svc = withEnv({ PAYOUT_TREASURY_PRIVATE: undefined, TREASURY_WALLET_PRIVATE: b58(shared) }, () => new USDCTransferService());
+    const r = await svc.transferUSDC(req('tola-dist-0014'), SIGNED_PAYOUT);
+    assert.equal(r.code, 'PAYOUT_NOT_CONFIGURED');
+    assert.equal(svc.getTreasuryAddress(), null);
+    assert.deepEqual(signers(svc), []);
+    const both = withEnv({ PAYOUT_TREASURY_PRIVATE: '  ' + b58(treasury) + '\n', TREASURY_WALLET_PRIVATE: b58(shared) }, () => new USDCTransferService());
+    assert.equal(both.getTreasuryAddress(), treasury.publicKey.toBase58(), 'the dedicated key, pasted with spaces and a newline');
+    assert.deepEqual(signers(both), [treasury.publicKey.toBase58()], 'and nothing else');
+    // In the source too: the signing key comes from PAYOUT_TREASURY_PRIVATE alone; the shared key is read once, only to
+    // refuse the same wallet (that refusal would also hide a fallback from the checks above, so this one looks directly).
+    const code = require('fs').readFileSync(require('path').join(__dirname, '..', 'src', 'services', 'usdc-transfer.service.ts'), 'utf8')
+        .split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l));
+    assert.deepEqual(code.filter((l) => /\bconst privateKey\b/.test(l)).map((l) => l.trim()), ["const privateKey = (process.env.PAYOUT_TREASURY_PRIVATE || '').trim();"]);
+    const sharedReads = code.filter((l) => l.includes('TREASURY_WALLET_PRIVATE') && !l.includes('PAYOUT_TREASURY_PRIVATE') && !/logger\./.test(l));
+    assert.equal(sharedReads.length, 1);
+    assert.match(sharedReads[0], /^\s*shared = Keypair\.fromSecretKey\(bs58\.decode\(\(process\.env\.TREASURY_WALLET_PRIVATE \|\| ''\)\.trim\(\)\)\)\.publicKey;$/);
+});
+
+test('the payout key may not be the shared treasury wallet', async () => {
+    const svc = withEnv({ PAYOUT_TREASURY_PRIVATE: b58(treasury), TREASURY_WALLET_PRIVATE: b58(treasury) }, () => new USDCTransferService());
+    const r = await svc.transferUSDC(req('tola-dist-0015'), SIGNED_PAYOUT);
+    assert.equal(r.code, 'PAYOUT_NOT_CONFIGURED');
+    assert.deepEqual(signers(svc), []);
+});
+
+// The product NFT mint signs only through the Metaplex identity it is given at start. Where the Metaplex library is
+// installed incompletely (Railway installs it whole), a stand-in for that library alone records that identity, so the
+// service's own key handling still runs; the test says when it did.
+function loadService(file, name, t) {
+    try {
+        return require(file)[name];
+    } catch (e) {
+        if (!/Cannot find module/.test(e.message) || !/@metaplex-foundation/.test(e.message)) { throw e; }
+        const Module = require('module');
+        const load = Module._load;
+        Module._load = function (request, ...rest) {
+            if ('@metaplex-foundation/js' !== request) { return load.call(this, request, ...rest); }
+            return {
+                Metaplex: { make: () => ({ id: null, use(p) { this.id = p.keypair; return this; }, identity() { return this.id; } }) },
+                keypairIdentity: (keypair) => ({ keypair }),
+                toMetaplexFile: () => ({}),
+            };
+        };
+        try {
+            t.diagnostic(`${name}: the Metaplex library is incomplete here; checked with a stand-in that records the signing identity`);
+            return require(file)[name];
+        } finally {
+            Module._load = load;
+        }
+    }
+}
+
+test('TOLA transfers, NFT transfers and minting, collections and the marketplace cannot read or use the payout key', (t) => {
+    const classes = {
+        'TOLA transfers': loadService('../dist/services/tola-transfer.service.js', 'TOLATransferService', t),
+        'NFT mint and transfer': loadService('../dist/services/tola-nft-mint.service.js', 'TOLANFTMintService', t),
+        'product NFT mint': loadService('../dist/services/nft-mint.service.js', 'NFTMintService', t),
+        'collections': loadService('../dist/services/collection.service.js', 'CollectionService', t),
+        'marketplace': loadService('../dist/services/marketplace.service.js', 'MarketplaceService', t),
+    };
+    const payout = treasury.publicKey.toBase58();
+    const shared = Keypair.generate();
+    for (const [name, Cls] of Object.entries(classes)) {
+        const alone = withEnv({ PAYOUT_TREASURY_PRIVATE: b58(treasury), TREASURY_WALLET_PRIVATE: undefined }, () => new Cls());
+        assert.equal(alone.initialized, false, `${name}: not switched on by the payout key`);
+        assert.ok(!signers(alone).includes(payout), `${name}: does not hold the payout key`);
+        const both = withEnv({ PAYOUT_TREASURY_PRIVATE: b58(treasury), TREASURY_WALLET_PRIVATE: b58(shared) }, () => new Cls());
+        assert.ok(signers(both).includes(shared.publicKey.toBase58()) && !signers(both).includes(payout), `${name}: signs only with its own shared key`);
+    }
+    // Statically: the payout key is named in one source file only.
+    const fs = require('fs');
+    const path = require('path');
+    const root = path.join(__dirname, '..');
+    const readers = [];
+    const walk = (dir) => {
+        for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+            const p = path.join(dir, e.name);
+            if (e.isDirectory()) { walk(p); } else if (/\.(ts|js|cjs|mjs)$/.test(e.name) && fs.readFileSync(p, 'utf8').includes('PAYOUT_TREASURY_PRIVATE')) { readers.push(path.relative(root, p).split(path.sep).join('/')); }
+        }
+    };
+    walk(path.join(root, 'src'));
+    assert.deepEqual(readers, ['src/services/usdc-transfer.service.ts']);
 });
 
 test('the Stripe-purchase webhook can no longer move USDC, and says so', async () => {
