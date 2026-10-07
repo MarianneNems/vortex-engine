@@ -23,6 +23,12 @@ try {
 /**
  * POST /api/usdc/transfer
  * Transfer USDC to user wallet
+ *
+ * 2026-10-07: reached only after requirePayoutHmac (server.ts) has verified the WordPress server's signature
+ * (x-vortex-timestamp, x-vortex-signature over `${timestamp}.${rawBody}`, shared secret WP_RAILWAY_SHARED_SECRET).
+ * Body: user_id, wallet_address, amount_usdc (at most 6 decimals), idempotency_key (one per payout), order_id.
+ * The same idempotency_key is never paid twice: 409 PAYOUT_DUPLICATE (with the earlier signature) or
+ * PAYOUT_IN_PROGRESS; 202 PAYOUT_OUTCOME_UNKNOWN means sent but not yet confirmed: do not pay again.
  */
 router.post('/transfer', async (req: Request, res: Response) => {
     try {
@@ -42,12 +48,12 @@ router.post('/transfer', async (req: Request, res: Response) => {
             });
         }
         
-        const result = await usdcService.transferUSDC(body);
+        const result = await usdcService.transferUSDC(body, (req as any).vortexSignedPayout);
         
         if (result.success) {
             return res.status(200).json(result);
         } else {
-            return res.status(500).json(result);
+            return res.status(usdcService.statusFor(result)).json(result);
         }
         
     } catch (error: any) {
@@ -156,3 +162,5 @@ router.get('/verify/:signature', async (req: Request, res: Response) => {
 
 export default router;
 export { router as usdcRoutes };
+// The router's own service instance (tests replace its RPC connection; nothing else should reach for it).
+export { usdcService as usdcTransferService };
