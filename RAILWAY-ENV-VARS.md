@@ -15,6 +15,7 @@ TOLA_MINT=H6qNYafSrpCjckH8yVwiPmXYPd1nCNBP8uQMZkv5hkky
 PLATFORM_TREASURY_PUBKEY=EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz
 TREASURY_WALLET_PUBLIC=EMmEk1FkUwzZnb6yTXM1HegCNdPKR4khxKQCLpiiQMCz
 TREASURY_WALLET_PRIVATE=YOUR_BASE58_PRIVATE_KEY
+PAYOUT_TREASURY_PRIVATE=YOUR_PAYOUT_ONLY_BASE58_PRIVATE_KEY
 ```
 
 ### WooCommerce Integration
@@ -51,6 +52,6 @@ WP_API_URL=https://yoursite.com/wp-json
 
 ## Notes
 
-1. `TREASURY_WALLET_PRIVATE` is required for blockchain transactions (USDC/TOLA transfers, NFT minting)
+1. `TREASURY_WALLET_PRIVATE` is required for TOLA transfers and NFT minting. USDC payouts use only `PAYOUT_TREASURY_PRIVATE`, a separate wallet that must not be the same one; without it payouts stay off.
 2. Both `SOLANA_RPC_URL` and `RPC_URL` should be set (code uses both)
 3. Never commit private keys to git!

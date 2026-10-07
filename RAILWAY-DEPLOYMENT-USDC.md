@@ -55,7 +55,7 @@ SOLANA_NETWORK=mainnet-beta
 ### Treasury Wallet (⚠️ KEEP SECURE!)
 ```
 PLATFORM_TREASURY_PUBKEY=Your_Solana_Wallet_Public_Key
-TREASURY_WALLET_PRIVATE=Your_Private_Key_Base58_Encoded
+PAYOUT_TREASURY_PRIVATE=Your_Payout_Only_Private_Key_Base58_Encoded
 ```
 
 **🔒 SECURITY NOTE:** Never commit private keys to GitHub!

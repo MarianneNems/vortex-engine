@@ -15,7 +15,7 @@ SOLANA_NETWORK=mainnet-beta
 
 # Treasury Wallet (CRITICAL - Secure These!)
 PLATFORM_TREASURY_PUBKEY=<your_solana_wallet_public_key>
-TREASURY_WALLET_PRIVATE=<your_solana_wallet_private_key_base58>
+PAYOUT_TREASURY_PRIVATE=<private key, base58, of a wallet used only for USDC payouts>
 
 # PRIMARY: USDC Configuration (User-Facing Currency)
 USDC_MINT=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
@@ -58,7 +58,7 @@ cat ~/usdc-treasury.json | jq -r '.[0:32] | @base64'
 
 1. Export your private key from Phantom
 2. Convert to base58 format
-3. Use as TREASURY_WALLET_PRIVATE
+3. Use as PAYOUT_TREASURY_PRIVATE (a wallet used only for payouts, never the TREASURY_WALLET_PRIVATE wallet)
 
 ## USDC Mint Address
 
